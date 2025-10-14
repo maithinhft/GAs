@@ -15,7 +15,43 @@ class UAV:
     max_velocity: float
     scan_width: float
 
-def generate_problem_instance(num_uavs: int, num_regions: int):
+def uunifast(total_sum, num_items):
+    """
+    Triển khai thuật toán UUniFast để tạo ra một danh sách `num_items` số
+    có tổng bằng `total_sum`.
+    """
+    if num_items == 0:
+        return []
+    if num_items == 1:
+        return [total_sum]
+        
+    # Tạo các điểm chia ngẫu nhiên
+    split_points = sorted([random.uniform(0, total_sum) for _ in range(num_items - 1)])
+    
+    # Thêm 0 và tổng vào danh sách điểm chia
+    full_points = [0] + split_points + [total_sum]
+    
+    # Các giá trị là sự khác biệt giữa các điểm chia liên tiếp
+    return [full_points[i+1] - full_points[i] for i in range(num_items)]
+
+def generate_problem_instance(
+    num_uavs: int,
+    num_regions: int,
+    system_area_ratio: float,
+    system_drag_factor: float,
+    map_boundary: float = 5000.0
+):
+    """
+    Sinh ra một bộ dữ liệu thử nghiệm theo phương pháp trong bài báo.
+
+    Args:
+        num_uavs (int): Số lượng UAV.
+        num_regions (int): Số lượng khu vực (m).
+        system_area_ratio (float): Tỷ lệ diện tích hệ thống (u).
+        system_drag_factor (float): Hệ số cản hệ thống (d).
+        map_boundary (float): Biên của bản đồ, dùng để tính tổng diện tích.
+    """
+    # --- Sinh danh sách UAV (không thay đổi so với code gốc) ---
     uavs_list = []
     for i in range(1, num_uavs + 1):
         uav = UAV(
@@ -25,26 +61,48 @@ def generate_problem_instance(num_uavs: int, num_regions: int):
         )
         uavs_list.append(uav)
         
+    # --- Sinh danh sách khu vực THEO BÀI BÁO ---
     regions_list = []
-    map_boundary = 5000 
+    
+    # 1. Tạo diện tích quét (Scan Area)
+    total_map_area = (2 * map_boundary) ** 2
+    # Sử dụng UUniFast để tạo các tỷ lệ diện tích u_j
+    area_ratios = uunifast(system_area_ratio, num_regions)
+    
     for i in range(1, num_regions + 1):
+        # Lấy diện tích từ tỷ lệ đã được sinh ra
+        region_area = area_ratios[i-1] * total_map_area
+        
+        # 2. Xác định vị trí khu vực (giữ nguyên)
+        region_coords = (
+            random.uniform(-map_boundary, map_boundary),
+            random.uniform(-map_boundary, map_boundary)
+        )
+        
         region = Region(
             id=i,
-            coords=(
-                random.uniform(-map_boundary, map_boundary),
-                random.uniform(-map_boundary, map_boundary)
-            ),
-            area=random.uniform(500, 5000)
+            coords=region_coords,
+            area=region_area
         )
         regions_list.append(region)
         
+    # --- Sinh ma trận tốc độ quét V THEO BÀI BÁO ---
     V_matrix_np = np.zeros((num_uavs, num_regions))
+    
+    # 3. Gán tốc độ quét (Scan Speeds)
+    # Tính delta theo công thức trong bài báo
+    delta = min(1 - system_drag_factor, system_drag_factor)
+    drag_factor_min = system_drag_factor - delta
+    drag_factor_max = system_drag_factor + delta
+
     for i in range(num_uavs):
         for j in range(num_regions):
+            # Giữ lại khả năng UAV không thể quét khu vực
             if random.random() < 0.05:
                 V_matrix_np[i, j] = 0
             else:
-                drag_factor = random.uniform(0.1, 0.9)
+                # Chọn hệ số cản trong khoảng [d - delta, d + delta]
+                drag_factor = random.uniform(drag_factor_min, drag_factor_max)
                 scan_velocity = uavs_list[i].max_velocity * drag_factor
                 V_matrix_np[i, j] = scan_velocity
     
@@ -53,10 +111,18 @@ def generate_problem_instance(num_uavs: int, num_regions: int):
     return uavs_list, regions_list, V_matrix
 
 if __name__ == "__main__":
-    NUM_UAVS = 10
-    NUM_REGIONS = 1000
+    # --- Các tham số đầu vào theo bài báo ---
+    NUM_UAVS = 4
+    NUM_REGIONS = 50
+    SYSTEM_AREA_RATIO = 0.05 # Ví dụ: Tổng diện tích các khu vực chiếm 5% bản đồ
+    SYSTEM_DRAG_FACTOR = 0.9 # Ví dụ: Hệ số cản trung bình là 0.9
     
-    uavs, regions, v_matrix = generate_problem_instance(NUM_UAVS, NUM_REGIONS)
+    uavs, regions, v_matrix = generate_problem_instance(
+        NUM_UAVS, 
+        NUM_REGIONS,
+        SYSTEM_AREA_RATIO,
+        SYSTEM_DRAG_FACTOR
+    )
     
     uavs_dict_list = [uav.__dict__ for uav in uavs]
     regions_dict_list = [region.__dict__ for region in regions]
