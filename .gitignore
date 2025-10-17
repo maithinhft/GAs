@@ -3,3 +3,9 @@ venv
 sample.json
 
 btvn/
+
+__pycache__
+
+fig/
+
+table/

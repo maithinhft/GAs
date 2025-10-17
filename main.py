@@ -265,10 +265,12 @@ class OrderOptimizerACS:
     def run(self) -> Tuple[List[int], float]:
         best_tour, best_time = None, float('inf')
 
+        position = [random.choice(list(range(1, self.n_points))) for _ in range(self.n_ants)]
+
         for gen in range(self.n_generations):
             for _ in range(self.n_ants):
                 # Đặt kiến ngẫu nhiên trong các vùng (không phải base) – Algorithm 2 (bước 3)
-                start_idx = random.choice(list(range(1, self.n_points)))
+                start_idx = position[_]
                 tour = [start_idx]
                 unvisited = list(range(1, self.n_points))
                 unvisited.remove(start_idx)
@@ -283,6 +285,7 @@ class OrderOptimizerACS:
                     tour.append(nxt)
                     unvisited.remove(nxt)
                     current = nxt
+                    position[_] = current
 
                 # Thời gian (không cần thêm base ở đầu – ta sẽ thêm khi tính nếu cần)
                 full_tour_for_timing = [0] + tour  # bắt đầu từ base theo định nghĩa thời gian
@@ -474,6 +477,7 @@ def main():
     plt.xlabel("Number of regions", fontsize=12)
     plt.ylabel("Execution time (s)", fontsize=12)
     plt.savefig('./fig/fig_2.png')
+    plt.close()
     create_table_image(headers=headers, data=rows, filename='./table/table_1.png')
 
     markers = ['o', 'D', '^', 'x', '+']
@@ -505,6 +509,7 @@ def main():
     plt.grid(True, which='both', linestyle='--', linewidth=0.5)
     plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.05), ncol=5, fancybox=True, shadow=False)
     plt.savefig('./fig/fig_3.png')
+    plt.close()
     
     headers = ['Region number'] + [i for i in range(5, 55, 5)]
     rows = [
@@ -536,6 +541,7 @@ def main():
     plt.xlabel("Number of regions", fontsize=12)
     plt.ylabel("Task completion time (s)", fontsize=12)
     plt.savefig('./fig/fig_4.png')
+    plt.close()
     create_table_image(headers=headers, data=rows, filename='./table/table_3.png')
     
     x_points = []
@@ -558,5 +564,6 @@ def main():
     plt.xlabel("System drag factor", fontsize=12)
     plt.ylabel("Task completion time (s)", fontsize=12)
     plt.savefig('./fig/fig_5.png')
+    plt.close()
 if __name__ == "__main__":
     main()
