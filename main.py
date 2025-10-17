@@ -5,6 +5,10 @@ import numpy as np
 from dataclasses import dataclass
 import json
 from typing import List, Tuple, Dict
+import time
+from create_sample import create_sample
+import matplotlib.pyplot as plt
+import tqdm
 
 # ==============================
 # Cấu trúc dữ liệu
@@ -64,8 +68,8 @@ def region_allocation(uavs: List[UAV], regions: List[Region], V_matrix: List[Lis
     Phân bổ từng vùng cho UAV theo 'tỷ lệ thời gian hiệu quả' (ETR = TS / (TS + TF)) – Eq. (9)
     và luôn gán cho UAV có 'finish_time' nhỏ nhất tại thời điểm đó – Algorithm 1 (bước 4–10).
     """
-    if verbose:
-        print("--- Bắt đầu Giai đoạn 1: Phân bổ khu vực ---")
+    # if verbose:
+    #     print("--- Bắt đầu Giai đoạn 1: Phân bổ khu vực ---")
 
     unassigned = regions.copy()
     assigned: Dict[int, List[Region]] = {u.id: [] for u in uavs}
@@ -114,8 +118,8 @@ def region_allocation(uavs: List[UAV], regions: List[Region], V_matrix: List[Lis
                     assigned[u.id].append(cand)
                     unassigned.remove(cand)
                     assigned_flag = True
-                    if verbose:
-                        print(f"Gán khu vực {cand.id} cho UAV {u.id}. ETR = {cand_etr:.4f}")
+                    # if verbose:
+                    #     print(f"Gán khu vực {cand.id} cho UAV {u.id}. ETR = {cand_etr:.4f}")
                     break
             if not assigned_flag:
                 raise RuntimeError("Không còn UAV nào có thể quét các vùng còn lại (V_matrix không khả thi).")
@@ -127,11 +131,11 @@ def region_allocation(uavs: List[UAV], regions: List[Region], V_matrix: List[Lis
             last_coords[current_uav.id] = best_region.coords
             assigned[current_uav.id].append(best_region)
             unassigned.remove(best_region)
-            if verbose:
-                print(f"Gán khu vực {best_region.id} cho UAV {current_uav.id}. ETR = {best_etr:.4f}")
+            # if verbose:
+            #     print(f"Gán khu vực {best_region.id} cho UAV {current_uav.id}. ETR = {best_etr:.4f}")
 
-    if verbose:
-        print("--- Kết thúc Giai đoạn 1 ---\n")
+    # if verbose:
+    #     print("--- Kết thúc Giai đoạn 1 ---\n")
     return assigned
 
 
@@ -300,39 +304,118 @@ class OrderOptimizerACS:
         best_ids = [self.points[i].id for i in best_tour] if best_tour is not None else []
         return best_ids, best_time
 
+def create_table_image(headers, data, filename='academic_table.png', figsize=(12, 5)):
+    """
+    Tạo bảng với định dạng học thuật và lưu thành file ảnh.
+    
+    Args:
+        headers (list): Danh sách các tiêu đề cột
+        data (list): Danh sách các hàng dữ liệu
+        filename (str): Tên file ảnh đầu ra
+        figsize (tuple): Kích thước hình (chiều rộng, chiều cao) tính bằng inch
+    """
+    import os
+    
+    # Đảm bảo thư mục tồn tại
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+    
+    fig, ax = plt.subplots(figsize=figsize)
+    ax.axis('tight')
+    ax.axis('off')
+    
+    # Chuyển dữ liệu thành chuỗi và định dạng số
+    string_data = []
+    for row in data:
+        string_row = []
+        for item in row:
+            if isinstance(item, (int, float)):
+                if abs(item) < 0.01:  # Cho số rất nhỏ
+                    string_row.append(f"{item:.5f}")
+                elif abs(item) < 0.1:  # Cho số nhỏ
+                    string_row.append(f"{item:.3f}")
+                else:  # Cho số thông thường
+                    string_row.append(f"{item:.2f}")
+            else:
+                string_row.append(str(item))
+        string_data.append(string_row)
+    
+    # Tạo bảng
+    table = ax.table(
+        cellText=string_data,
+        colLabels=headers,
+        loc='center',
+        cellLoc='center',
+        colWidths=[0.1] + [0.09] * (len(headers)-1),  # Chiều rộng cột đầu lớn hơn
+        bbox=[0, 0, 1, 1]
+    )
+    
+    # Điều chỉnh kích thước font và bảng
+    table.auto_set_font_size(False)
+    table.set_fontsize(9)
+    table.scale(1.0, 1.5)  # Tăng chiều cao hàng
+    
+    # Định dạng toàn bộ bảng
+    for (i, j), cell in table.get_celld().items():
+        cell.set_linewidth(0.5)  # Độ dày đường viền
+        cell.set_text_props(wrap=True)  # Cho phép text wrap
+        
+        # Thêm đường viền ngang đậm ở đầu và cuối bảng
+        if i == 0:  # Header
+            cell.set_linewidth(1.0)
+            cell.set_text_props(weight='bold')
+            cell.set_facecolor('#f2f2f2')  # Màu xám nhạt cho header
+        
+        # Đảm bảo các viền ngang đều hiển thị
+        if i in [0, len(data)]:
+            cell.visible_edges = 'BTRL'  # Tất cả các viền
+        else:
+            cell.visible_edges = 'BTRL'  # Tất cả các viền
+    
+    # Đường viền ngang đậm giữa header và nội dung
+    for j in range(len(headers)):
+        cell = table[(0, j)]
+        cell.set_linewidth(1.0)
+        
+        # Đảm bảo hiển thị đường viền dưới header
+        cell = table[(1, j)]
+        cell.visible_edges = 'BTRL'
+        cell.set_linewidth(0.8)
+    
+    # Lưu bảng
+    plt.tight_layout()
+    plt.savefig(filename, dpi=300, bbox_inches='tight', pad_inches=0.05)
+    plt.close()
+    
+def run_sample(data):
+    # file_path = 'sample.json'
+    # try:
+    #     with open(file_path, 'r', encoding='utf-8') as f:
+    #         data = json.load(f)
 
-# ==============================
-# Ví dụ chạy (IO JSON như code của bạn)
-# ==============================
-
-if __name__ == "__main__":
-    file_path = 'sample.json'
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-
-        uavs_list = [UAV(**uav_dict) for uav_dict in data['uavs_list']]
-        regions_list = [Region(**region) for region in data['regions_list']]
-        V_matrix = data['V_matrix']
-
-    except FileNotFoundError:
-        print(f"Lỗi: Không tìm thấy file tại '{file_path}'.")
-        exit(1)
-    except json.JSONDecodeError:
-        print(f"Lỗi: Nội dung trong file '{file_path}' không phải JSON hợp lệ.")
-        exit(1)
-
+    #     uavs_list = [UAV(**uav_dict) for uav_dict in data['uavs_list']]
+    #     regions_list = [Region(**region) for region in data['regions_list']]
+    #     V_matrix = data['V_matrix']
+    # except FileNotFoundError:
+    #     print(f"Lỗi: Không tìm thấy file tại '{file_path}'.")
+    #     exit(1)
+    # except json.JSONDecodeError:
+    #     print(f"Lỗi: Nội dung trong file '{file_path}' không phải JSON hợp lệ.")
+    #     exit(1)
+    uavs_list = [UAV(**uav_dict) for uav_dict in data['uavs_list']]
+    regions_list = [Region(**region) for region in data['regions_list']]
+    V_matrix = data['V_matrix']
     assignments = region_allocation(uavs_list, regions_list, V_matrix)
 
-    print("Kết quả phân bổ:")
-    for uav_id, regs in assignments.items():
-        print(f"  - UAV {uav_id}: {[r.id for r in regs]}")
-    print("-" * 50)
+    # print("Kết quả phân bổ:")
+    # for uav_id, regs in assignments.items():
+    #     print(f"  - UAV {uav_id}: {[r.id for r in regs]}")
+    # print("-" * 50)
 
+    last_finish_time = 0
     for uav in uavs_list:
         regs = assignments[uav.id]
         if regs:
-            print(f"\n--- Giai đoạn 2: Tối ưu hóa thứ tự cho UAV {uav.id} ---")
+            # print(f"\n--- Giai đoạn 2: Tối ưu hóa thứ tự cho UAV {uav.id} ---")
             optimizer = OrderOptimizerACS(
                 uav=uav,
                 regions=regs,
@@ -345,10 +428,135 @@ if __name__ == "__main__":
                 rho=0.1,
                 epsilon=0.1,
                 q0=0.9,
-                include_return_to_base=False,  # Theo paper: bỏ qua TF quay về base
+                include_return_to_base=False,
                 rng_seed=42
             )
             best_path, best_time = optimizer.run()
-            print(f"Lộ trình tối ưu (id): {best_path}")
-            print(f"Ước tính thời gian hoàn thành: {best_time:.4f} (đv: giây)")
-            print(f"--- Kết thúc tối ưu cho UAV {uav.id} ---")
+            last_finish_time = max(last_finish_time, best_time)
+            # print(f"Lộ trình tối ưu (id): {best_path}")
+            # print(f"Ước tính thời gian hoàn thành: {best_time:.4f} (đv: giây)")
+            # print(f"--- Kết thúc tối ưu cho UAV {uav.id} ---")
+    return last_finish_time
+def estimate_run_time(NUM_UAVS = 4, NUM_REGIONS = 50):
+    random.seed()
+    np.random.seed()
+    sample_data = create_sample(NUM_UAVS=NUM_UAVS, NUM_REGIONS=NUM_REGIONS)
+    start_time = time.perf_counter()
+    run_sample(sample_data)
+    end_time = time.perf_counter()
+    return end_time - start_time
+
+def time_statistic_base_on_minutes(num_uavs=4, num_regions = 50, u = 0.02, d = 0.9):
+    random.seed()
+    np.random.seed()
+    sample_data = create_sample(NUM_UAVS=num_uavs, NUM_REGIONS=num_regions, SYSTEM_AREA_RATIO=u, SYSTEM_DRAG_FACTOR=d)
+    return run_sample(sample_data) / 60
+
+def main():
+    headers = ['Number', 'APPA']
+    rows = []
+    x_points = []
+    y_points = []
+    for try_time in tqdm.tqdm(range(0, 100), desc="Fig 2", position=0):
+        for num_regions in range(5, 55, 5):
+            if try_time == 0: 
+                x_points.append(num_regions)
+                y_points.append(estimate_run_time(NUM_REGIONS=num_regions))
+            else:
+                y_points[num_regions // 5 - 1] += estimate_run_time(NUM_REGIONS=num_regions)
+    
+    for index, value in enumerate(y_points):
+        y_points[index] /= 100
+        rows.append([index * 5 + 5, value])
+    plt.plot(x_points, y_points, marker = 'o', linestyle='-', label='APPA')
+    plt.grid(True, which='both', linestyle='--', linewidth=0.5)
+    plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.05), ncol=5, fancybox=True, shadow=False)
+    plt.xlabel("Number of regions", fontsize=12)
+    plt.ylabel("Execution time (s)", fontsize=12)
+    plt.savefig('./fig/fig_2.png')
+    create_table_image(headers=headers, data=rows, filename='./table/table_1.png')
+
+    markers = ['o', 'D', '^', 'x', '+']
+    record = [[] for _ in range(10)]
+    
+    for num_uavs in range(2, 12, 2):
+        x_points = []
+        y_points = []
+        
+        for try_time in tqdm.tqdm(range(0, 100), desc=f"Fig 3, num uavs={num_uavs}", position=0):
+            for num_regions in range(5, 55, 5):
+                tmp = estimate_run_time(NUM_UAVS=num_uavs, NUM_REGIONS=num_regions)
+                if try_time == 0: 
+                    x_points.append(num_regions)
+                    y_points.append(tmp)
+                else:
+                    y_points[num_regions // 5 - 1] += tmp
+                    
+                if num_uavs == 4:
+                    record[num_regions // 5 -1].append(tmp)
+        
+        for index, _ in enumerate(y_points):
+            y_points[index] /= 100
+            
+        plt.plot(x_points, y_points, marker=markers[num_uavs // 2 -1], linestyle='-', label=f'n={num_uavs}')
+    
+    plt.xlabel("Number of regions", fontsize=12)
+    plt.ylabel("Execution time (s)", fontsize=12)
+    plt.grid(True, which='both', linestyle='--', linewidth=0.5)
+    plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.05), ncol=5, fancybox=True, shadow=False)
+    plt.savefig('./fig/fig_3.png')
+    
+    headers = ['Region number'] + [i for i in range(5, 55, 5)]
+    rows = [
+        ['Minimum time (s)'] + [np.min(record[i]) for i in range(len(record))],
+        ['Average time (s)'] + [np.mean(record[i]) for i in range(len(record))],
+        ['Maximum time (s)'] + [np.max(record[i]) for i in range(len(record))],
+        ['Standard deviation'] + [np.std(record[i]) for i in range(len(record))]
+    ]
+    create_table_image(headers=headers, data=rows, filename='./table/table_2.png')
+    
+    headers = ['Number', 'APPA']
+    rows = []
+    x_points = []
+    y_points = []
+    for try_time in tqdm.tqdm(range(0, 100), desc="Table 3", position=0):
+        for num_regions in range(5, 55, 5):
+            if try_time == 0: 
+                x_points.append(num_regions)
+                y_points.append(time_statistic_base_on_minutes(num_regions=num_regions, u=0.02, d = 0.9))
+            else:
+                y_points[num_regions // 5 - 1] += time_statistic_base_on_minutes(num_regions=num_regions, u=0.02, d = 0.9)
+    
+    for index, value in enumerate(y_points):
+        y_points[index] /= 100
+        rows.append([index * 5 + 5, value])
+    plt.plot(x_points, y_points, marker = 'o', linestyle='-', label='APPA')
+    plt.grid(True, which='both', linestyle='--', linewidth=0.5)
+    plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.05), ncol=5, fancybox=True, shadow=False)
+    plt.xlabel("Number of regions", fontsize=12)
+    plt.ylabel("Task completion time (s)", fontsize=12)
+    plt.savefig('./fig/fig_4.png')
+    create_table_image(headers=headers, data=rows, filename='./table/table_3.png')
+    
+    x_points = []
+    y_points = []
+    for try_time in tqdm.tqdm(range(0, 100), desc="Fig 5", position=0):
+        for system_drag_factor in range(1, 10):
+            tmp = time_statistic_base_on_minutes(num_regions=15, u = 0.01, d = system_drag_factor / 10)
+            if try_time == 0:
+                x_points.append(system_drag_factor / 10)
+                y_points.append(tmp)
+            else:
+                y_points[system_drag_factor - 1] += tmp
+    
+    for index, _ in enumerate(y_points):
+        y_points[index] /= 100
+    
+    plt.plot(x_points, y_points, marker = 'o', linestyle='-', label='APPA')
+    plt.grid(True, which='both', linestyle='--', linewidth=0.5)
+    plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.05), ncol=5, fancybox=True, shadow=False)
+    plt.xlabel("System drag factor", fontsize=12)
+    plt.ylabel("Task completion time (s)", fontsize=12)
+    plt.savefig('./fig/fig_5.png')
+if __name__ == "__main__":
+    main()

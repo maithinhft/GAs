@@ -25,13 +25,10 @@ def uunifast(total_sum, num_items):
     if num_items == 1:
         return [total_sum]
         
-    # Tạo các điểm chia ngẫu nhiên
     split_points = sorted([random.uniform(0, total_sum) for _ in range(num_items - 1)])
     
-    # Thêm 0 và tổng vào danh sách điểm chia
     full_points = [0] + split_points + [total_sum]
     
-    # Các giá trị là sự khác biệt giữa các điểm chia liên tiếp
     return [full_points[i+1] - full_points[i] for i in range(num_items)]
 
 def generate_problem_instance(
@@ -51,7 +48,6 @@ def generate_problem_instance(
         system_drag_factor (float): Hệ số cản hệ thống (d).
         map_boundary (float): Biên của bản đồ, dùng để tính tổng diện tích.
     """
-    # --- Sinh danh sách UAV (không thay đổi so với code gốc) ---
     uavs_list = []
     for i in range(1, num_uavs + 1):
         uav = UAV(
@@ -61,19 +57,14 @@ def generate_problem_instance(
         )
         uavs_list.append(uav)
         
-    # --- Sinh danh sách khu vực THEO BÀI BÁO ---
     regions_list = []
     
-    # 1. Tạo diện tích quét (Scan Area)
     total_map_area = (2 * map_boundary) ** 2
-    # Sử dụng UUniFast để tạo các tỷ lệ diện tích u_j
     area_ratios = uunifast(system_area_ratio, num_regions)
     
     for i in range(1, num_regions + 1):
-        # Lấy diện tích từ tỷ lệ đã được sinh ra
         region_area = area_ratios[i-1] * total_map_area
         
-        # 2. Xác định vị trí khu vực (giữ nguyên)
         region_coords = (
             random.uniform(-map_boundary, map_boundary),
             random.uniform(-map_boundary, map_boundary)
@@ -86,37 +77,30 @@ def generate_problem_instance(
         )
         regions_list.append(region)
         
-    # --- Sinh ma trận tốc độ quét V THEO BÀI BÁO ---
     V_matrix_np = np.zeros((num_uavs, num_regions))
     
-    # 3. Gán tốc độ quét (Scan Speeds)
-    # Tính delta theo công thức trong bài báo
     delta = min(1 - system_drag_factor, system_drag_factor)
     drag_factor_min = system_drag_factor - delta
     drag_factor_max = system_drag_factor + delta
 
     for i in range(num_uavs):
         for j in range(num_regions):
-            # Giữ lại khả năng UAV không thể quét khu vực
             if random.random() < 0.05:
                 V_matrix_np[i, j] = 0
             else:
-                # Chọn hệ số cản trong khoảng [d - delta, d + delta]
                 drag_factor = random.uniform(drag_factor_min, drag_factor_max)
                 scan_velocity = uavs_list[i].max_velocity * drag_factor
                 V_matrix_np[i, j] = scan_velocity
     
-    V_matrix = V_matrix_np.tolist()
-    
-    return uavs_list, regions_list, V_matrix
+    for j in range(num_regions):
+        if all(V_matrix_np[i, j] == 0 for i in range(num_uavs)):
+            random_uav = random.randint(0, num_uavs - 1)
+            drag_factor = random.uniform(drag_factor_min, drag_factor_max)
+            V_matrix_np[random_uav, j] = uavs_list[random_uav].max_velocity * drag_factor
 
-if __name__ == "__main__":
-    # --- Các tham số đầu vào theo bài báo ---
-    NUM_UAVS = 4
-    NUM_REGIONS = 50
-    SYSTEM_AREA_RATIO = 0.05 # Ví dụ: Tổng diện tích các khu vực chiếm 5% bản đồ
-    SYSTEM_DRAG_FACTOR = 0.9 # Ví dụ: Hệ số cản trung bình là 0.9
-    
+    return uavs_list, regions_list, V_matrix_np.tolist()
+
+def create_sample(NUM_UAVS = 4, NUM_REGIONS = 50,SYSTEM_AREA_RATIO = 0.05, SYSTEM_DRAG_FACTOR = 0.9):     
     uavs, regions, v_matrix = generate_problem_instance(
         NUM_UAVS, 
         NUM_REGIONS,
@@ -132,9 +116,11 @@ if __name__ == "__main__":
         "regions_list": regions_dict_list,
         "V_matrix": v_matrix
     }
+
+    return data_to_write
     
-    file_path = "sample.json"
-    with open(file_path, 'w', encoding='utf-8') as f:
-        json.dump(data_to_write, f, ensure_ascii=False, indent=4)
+    # file_path = "sample.json"
+    # with open(file_path, 'w', encoding='utf-8') as f:
+    #     json.dump(data_to_write, f, ensure_ascii=False, indent=4)
         
-    print(f"Dữ liệu đã được ghi thành công vào file '{file_path}'.")
+    # print(f"Dữ liệu đã được ghi thành công vào file '{file_path}'.")
