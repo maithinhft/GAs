@@ -124,3 +124,6 @@ def create_sample(NUM_UAVS = 4, NUM_REGIONS = 50,SYSTEM_AREA_RATIO = 0.05, SYSTE
     #     json.dump(data_to_write, f, ensure_ascii=False, indent=4)
         
     # print(f"Dữ liệu đã được ghi thành công vào file '{file_path}'.")
+
+if __name__ == "__main__":
+    create_sample()
