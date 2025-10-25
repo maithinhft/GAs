@@ -235,7 +235,7 @@ def benchmark_optimization(num_uavs=4, num_regions=50, u=0.02, d=0.9):
     sample = create_sample(NUM_UAVS=num_uavs, NUM_REGIONS=num_regions,
                            SYSTEM_AREA_RATIO=u, SYSTEM_DRAG_FACTOR=d)
 
-    return [appa_run_sample(sample), optimization_run_sample(sample)]
+    return [appa_run_sample(sample) / 60, optimization_run_sample(sample) / 60]
 
 
 def main():
@@ -443,7 +443,7 @@ def main():
     plt.plot(x_points, optimization_y_points, marker='x',
              linestyle='-', label='optimization')
     plt.xlabel("Number of uavs", fontsize=12)
-    plt.ylabel("Time cost (s)", fontsize=12)
+    plt.ylabel("Time cost (m)", fontsize=12)
     plt.grid(True, which='both', linestyle='--', linewidth=0.5)
     plt.legend(loc='upper center', bbox_to_anchor=(
         0.5, 1.05), ncol=5, fancybox=True, shadow=False)
@@ -472,7 +472,8 @@ def main():
     plt.plot(x_points, optimization_y_points, marker='x',
              linestyle='-', label='optimization')
     plt.xlabel("System drag factor", fontsize=12)
-    plt.ylabel("Time cost (s)", fontsize=12)
+    plt.ylabel("Time cost (m)", fontsize=12)
+    plt.yscale('log')  # Sử dụng scale logarithmic cho trục Y
     plt.grid(True, which='both', linestyle='--', linewidth=0.5)
     plt.legend(loc='upper center', bbox_to_anchor=(
         0.5, 1.05), ncol=5, fancybox=True, shadow=False)
@@ -502,7 +503,7 @@ def main():
     plt.plot(x_points, optimization_y_points, marker='x',
              linestyle='-', label='optimization')
     plt.xlabel("Number of regions", fontsize=12)
-    plt.ylabel("Time cost (s)", fontsize=12)
+    plt.ylabel("Time cost (m)", fontsize=12)
     plt.grid(True, which='both', linestyle='--', linewidth=0.5)
     plt.legend(loc='upper center', bbox_to_anchor=(
         0.5, 1.05), ncol=5, fancybox=True, shadow=False)
