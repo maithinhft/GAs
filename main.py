@@ -1,3 +1,4 @@
+import os
 import random
 import numpy as np
 import time
@@ -823,4 +824,5 @@ def main():
 
 
 if __name__ == "__main__":
+    os.makedirs('./fig', exist_ok=True)
     main()
