@@ -1,19 +1,6 @@
-import json
 import random
-from dataclasses import dataclass
 import numpy as np
-
-@dataclass
-class Region:
-    id: int
-    coords: tuple[float, float]
-    area: float
-
-@dataclass
-class UAV:
-    id: int
-    max_velocity: float
-    scan_width: float
+from .config import Region, UAV
 
 def uunifast(total_sum, num_items):
     """
@@ -101,6 +88,8 @@ def generate_problem_instance(
     return uavs_list, regions_list, V_matrix_np.tolist()
 
 def create_sample(NUM_UAVS = 4, NUM_REGIONS = 50,SYSTEM_AREA_RATIO = 0.05, SYSTEM_DRAG_FACTOR = 0.9):     
+    random.seed(100)
+    np.random.seed(100)
     uavs, regions, v_matrix = generate_problem_instance(
         NUM_UAVS, 
         NUM_REGIONS,
@@ -117,13 +106,12 @@ def create_sample(NUM_UAVS = 4, NUM_REGIONS = 50,SYSTEM_AREA_RATIO = 0.05, SYSTE
         "V_matrix": v_matrix
     }
 
-    return data_to_write
-    
     # file_path = "sample.json"
     # with open(file_path, 'w', encoding='utf-8') as f:
     #     json.dump(data_to_write, f, ensure_ascii=False, indent=4)
-        
     # print(f"Dữ liệu đã được ghi thành công vào file '{file_path}'.")
+    
+    return data_to_write
 
 if __name__ == "__main__":
     create_sample()

@@ -4,7 +4,6 @@ import random
 import numpy as np
 from dataclasses import dataclass
 from typing import List, Tuple, Dict
-from create_sample import create_sample
 
 # ==============================
 # Cấu trúc dữ liệu

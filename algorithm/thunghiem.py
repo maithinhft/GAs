@@ -2,6 +2,8 @@ from dataclasses import dataclass
 from typing import List, Tuple, Dict, Optional
 import math
 import random
+from utils.create_sample import create_sample 
+
 
 # =============================
 # Dataclasses
@@ -341,7 +343,6 @@ def build_from_sample_dict(sample: Dict) -> Tuple[List[UAV], List[Region], List[
 # =============================
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
-    from create_sample import create_sample  # dùng file bạn đã cung cấp
     import csv
     import statistics as stats
 
@@ -351,7 +352,8 @@ if __name__ == "__main__":
     SYSTEM_DRAG_FACTOR = 0.9  # d = 0.9
     REGION_GRID = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50]  # số vùng
     NUM_TRIALS = 10  # số lần lặp để lấy trung bình (bạn có thể tăng lên 100 cho sát paper)
-
+    SYSTEM_DRAG_FACTOR_GRID = [i / 10 for i in range(1, 10)]
+    NUM_UAV_GRID =[i for i in range(2, 10)]
     old_means_min = []
     new_means_min = []
 
@@ -359,16 +361,18 @@ if __name__ == "__main__":
     old_stds_min = []
     new_stds_min = []
 
-    for m in REGION_GRID:
+    # for m in REGION_GRID:
+    for uavs in NUM_UAV_GRID:
+        print(uavs)
         old_trials_min = []
         new_trials_min = []
 
         for _ in range(NUM_TRIALS):
             sample = create_sample(
-                NUM_UAVS=NUM_UAVS,
-                NUM_REGIONS=m,
+                NUM_UAVS=uavs,
+                NUM_REGIONS=50,
                 SYSTEM_AREA_RATIO=SYSTEM_AREA_RATIO,
-                SYSTEM_DRAG_FACTOR=SYSTEM_DRAG_FACTOR,
+                SYSTEM_DRAG_FACTOR=0.9,
             )
             uavs, regions, V_matrix = build_from_sample_dict(sample)
 
@@ -385,16 +389,14 @@ if __name__ == "__main__":
         new_means_min.append(sum(new_trials_min) / len(new_trials_min))
 
 
-
-
     # ===== Vẽ LINE CHART (Oy = phút, 1 plot, không set màu) =====
     plt.figure(figsize=(7, 4.5))
-    plt.plot(REGION_GRID, old_means_min, marker="o", label="Cũ ")
-    plt.plot(REGION_GRID, new_means_min, marker="s", label="Mới ")
+    plt.plot(NUM_UAV_GRID, old_means_min, marker="o", label="Cũ ")
+    plt.plot(NUM_UAV_GRID, new_means_min, marker="s", label="Mới ")
     plt.title("Thời gian hoàn thành tác vụ theo số vùng (phút)")
-    plt.xlabel("Số vùng")
+    plt.xlabel("System drag factor")
     plt.ylabel("Thời gian hoàn thành tác vụ (phút)")
     plt.legend()
     plt.grid(True, linestyle="--", alpha=0.5)
     plt.tight_layout()
-    plt.show()
+    plt.savefig("./fig/thunghiem.png")
