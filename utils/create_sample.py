@@ -1,6 +1,6 @@
 import random
 import numpy as np
-from .config import Region, UAV
+from .config import Region, UAV, RANDOM_SEED
 
 def uunifast(total_sum, num_items):
     """
@@ -88,8 +88,8 @@ def generate_problem_instance(
     return uavs_list, regions_list, V_matrix_np.tolist()
 
 def create_sample(NUM_UAVS = 4, NUM_REGIONS = 50,SYSTEM_AREA_RATIO = 0.05, SYSTEM_DRAG_FACTOR = 0.9):     
-    random.seed(100)
-    np.random.seed(100)
+    random.seed(RANDOM_SEED)
+    np.random.seed(RANDOM_SEED)
     uavs, regions, v_matrix = generate_problem_instance(
         NUM_UAVS, 
         NUM_REGIONS,

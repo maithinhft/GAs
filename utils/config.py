@@ -1,4 +1,5 @@
-max_loop = 5
+max_loop = 100
+RANDOM_SEED = 100
 from dataclasses import dataclass
 
 @dataclass
