@@ -1,303 +1,387 @@
-# -*- coding: utf-8 -*-
-import math
-import random
 import numpy as np
-from dataclasses import dataclass
-from typing import List, Tuple, Dict
-
-# ==============================
-# Cấu trúc dữ liệu
-# ==============================
-
-@dataclass
-class Region:
-    id: int
-    coords: Tuple[float, float]
-    area: float
-
-@dataclass
-class UAV:
-    id: int
-    max_velocity: float  # V_max_i
-    scan_width: float    # W_i
-
-
-# ==============================
-# Hàm tiện ích
-# ==============================
-
-def calculate_distance(p1: Tuple[float, float], p2: Tuple[float, float]) -> float:
-    return math.hypot(p1[0] - p2[0], p1[1] - p2[1])
-
-def calculate_ts(uav: UAV, region: Region, V_matrix: List[List[float]]) -> float:
-    """
-    TS_i,j = A_j / (V_i,j * W_i)  (Eq. (1) của paper: nếu V_i,j = 0 thì TS = +inf)
-    """
-    if region.id == -1:  # base (không có area)
-        return 0.0
-    uav_idx = uav.id - 1
-    region_idx = region.id - 1
-    scan_velocity = V_matrix[uav_idx][region_idx]  # V_i,j
-    if scan_velocity <= 0 or uav.scan_width <= 0:
-        return float('inf')
-    return region.area / (scan_velocity * uav.scan_width)
-
-def calculate_tf(uav: UAV, p1: Tuple[float, float], p2: Tuple[float, float]) -> float:
-    """
-    TF_i,j,k = D_j,k / V_max_i  (Eq. (2))
-    """
-    if uav.max_velocity <= 0:
-        return float('inf')
-    distance = calculate_distance(p1, p2)
-    return distance / uav.max_velocity
-
-
-# ==============================
-# Giai đoạn 1: Phân bổ vùng (Algorithm 1)
-# ==============================
-
-def region_allocation(uavs: List[UAV], regions: List[Region], V_matrix: List[List[float]],
-                      base_coords: Tuple[float, float] = (0.0, 0.0),
-                      verbose: bool = True) -> Dict[int, List[Region]]:
-    """
-    Phân bổ từng vùng cho UAV theo 'tỷ lệ thời gian hiệu quả' (ETR = TS / (TS + TF)) – Eq. (9)
-    và luôn gán cho UAV có 'finish_time' nhỏ nhất tại thời điểm đó – Algorithm 1 (bước 4–10).
-    """
-    # if verbose:
-    #     print("--- Bắt đầu Giai đoạn 1: Phân bổ khu vực ---")
-
-    unassigned = regions.copy()
-    assigned: Dict[int, List[Region]] = {u.id: [] for u in uavs}
-    finish_times: Dict[int, float] = {u.id: 0.0 for u in uavs}
-    last_coords: Dict[int, Tuple[float, float]] = {u.id: base_coords for u in uavs}
-
-    while unassigned:
-        # UAV dự kiến hoàn tất sớm nhất
-        earliest_uav_id = min(finish_times, key=finish_times.get)
-        current_uav = next(u for u in uavs if u.id == earliest_uav_id)
-
-        best_region = None
-        best_etr = -1.0
-
-        for r in unassigned:
-            ts = calculate_ts(current_uav, r, V_matrix)
-            if math.isinf(ts):
-                continue  # UAV này không quét được vùng r
-            tf = calculate_tf(current_uav, last_coords[current_uav.id], r.coords)
-            etr = ts / (ts + tf) if (ts + tf) > 0 else 0.0  # Eq. (9) dạng TR = TS/(TF+TS)
-            if etr > best_etr:
-                best_etr = etr
-                best_region = r
-
-        # Nếu UAV hiện tại không quét được vùng nào còn lại, chuyển cho UAV khác
-        if best_region is None:
-            # Tìm UAV khác có thể quét được ít nhất một vùng còn lại
-            assigned_flag = False
-            for u in sorted(uavs, key=lambda x: finish_times[x.id]):
-                cand = None
-                cand_etr = -1.0
-                for r in unassigned:
-                    ts = calculate_ts(u, r, V_matrix)
-                    if math.isinf(ts):
-                        continue
-                    tf = calculate_tf(u, last_coords[u.id], r.coords)
-                    etr = ts / (ts + tf) if (ts + tf) > 0 else 0.0
-                    if etr > cand_etr:
-                        cand_etr, cand = etr, r
-                if cand is not None:
-                    # gán cho UAV u
-                    ts = calculate_ts(u, cand, V_matrix)
-                    tf = calculate_tf(u, last_coords[u.id], cand.coords)
-                    finish_times[u.id] += (ts + tf)
-                    last_coords[u.id] = cand.coords
-                    assigned[u.id].append(cand)
-                    unassigned.remove(cand)
-                    assigned_flag = True
-                    # if verbose:
-                    #     print(f"Gán khu vực {cand.id} cho UAV {u.id}. ETR = {cand_etr:.4f}")
-                    break
-            if not assigned_flag:
-                raise RuntimeError("Không còn UAV nào có thể quét các vùng còn lại (V_matrix không khả thi).")
-        else:
-            # gán cho UAV 'earliest'
-            ts = calculate_ts(current_uav, best_region, V_matrix)
-            tf = calculate_tf(current_uav, last_coords[current_uav.id], best_region.coords)
-            finish_times[current_uav.id] += (ts + tf)
-            last_coords[current_uav.id] = best_region.coords
-            assigned[current_uav.id].append(best_region)
-            unassigned.remove(best_region)
-            # if verbose:
-            #     print(f"Gán khu vực {best_region.id} cho UAV {current_uav.id}. ETR = {best_etr:.4f}")
-
-    # if verbose:
-    #     print("--- Kết thúc Giai đoạn 1 ---\n")
-    return assigned
-
-
-# ==============================
-# Giai đoạn 2: Tối ưu thứ tự bằng ACS (Algorithm 2)
-# ==============================
-
-class OrderOptimizerACS:
-    """
-    Hiện thực ACS đúng theo paper:
-    - Heuristic: eta(i,j) = 1/D(i,j) (Eq. (13))
-    - Khởi tạo pheromone: tau0 = 1 / (m * L_nn) với m = số vùng (exclude base) (Eq. (12))
-    - Quy tắc chọn: nếu q <= q0 => argmax tau^alpha * eta^beta; else => Roulette (Eq. (10)-(11))
-    - Cập nhật cục bộ: tau = (1 - rho) * tau + rho * tau0 (Eq. (14))
-    - Cập nhật toàn cục trên best path: tau = (1 - eps) * tau + eps * (1/L_best) (Eq. (15)-(16))
-    - Thời gian tour: sum(TF + TS) theo Eq. (7), mặc định KHÔNG cộng thời gian quay về base
-      (theo mô tả thực nghiệm trong paper).
-    """
-
-    def __init__(self,
-                 uav: UAV,
-                 regions: List[Region],
-                 V_matrix: List[List[float]],
-                 base_coords: Tuple[float, float] = (0.0, 0.0),
-                 n_ants: int = 10,
-                 n_generations: int = 50,
-                 alpha: float = 1.0,
-                 beta: float = 2.0,
-                 rho: float = 0.1,
-                 epsilon: float = 0.1,
-                 q0: float = 0.9,
-                 include_return_to_base: bool = False,
-                 rng_seed: int = None):
-        self.uav = uav
-        # điểm 0 là base (id=-1); sau đó là các vùng được gán cho UAV
-        self.points: List[Region] = [Region(id=-1, coords=base_coords, area=0.0)] + regions
-        self.V_matrix = V_matrix
-        self.n_points = len(self.points)  # = m + 1 (tính cả base)
-
-        self.n_ants = n_ants
-        self.n_generations = n_generations
+import random
+from typing import List, Dict, Tuple
+import math
+from utils.config import *
+class APPAAlgorithm:
+    def __init__(
+        self,
+        uavs_list: List[UAV],
+        regions_list: List[Region],
+        V_matrix: List[List[float]],
+        num_ants: int = 20,
+        max_iterations: int = 100,
+        alpha: float = 1.0,
+        beta: float = 2.0,
+        rho: float = 0.1,
+        epsilon: float = 0.1,
+        q0: float = 0.9
+    ):
+        self.uavs_list = uavs_list
+        self.regions_list = regions_list
+        self.V_matrix = np.array(V_matrix)
+        
+        self.num_uavs = len(uavs_list)
+        self.num_regions = len(regions_list)
+        
+        # ACS parameters
+        self.num_ants = num_ants
+        self.max_iterations = max_iterations
         self.alpha = alpha
         self.beta = beta
         self.rho = rho
         self.epsilon = epsilon
         self.q0 = q0
-        self.include_return_to_base = include_return_to_base
-
-        if rng_seed is not None:
-            random.seed(rng_seed)
-            np.random.seed(rng_seed)
-
-        self._initialize()
-
-    def _calculate_nearest_neighbour_tour(self) -> Tuple[List[int], float]:
+        
+        # Precompute distance matrix
+        self.D_matrix = self._compute_distance_matrix()
+        
+        # Compute TS and TF matrices
+        self.TS_matrix = self._compute_scan_time_matrix()
+        self.TF_matrix = self._compute_flight_time_matrix()
+        
+    def _compute_distance_matrix(self) -> np.ndarray:
+        """Compute distance matrix between all regions"""
+        D = np.zeros((self.num_regions, self.num_regions))
+        for i in range(self.num_regions):
+            for j in range(self.num_regions):
+                if i != j:
+                    x1, y1 = self.regions_list[i].coords
+                    x2, y2 = self.regions_list[j].coords
+                    D[i][j] = math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
+        return D
+    
+    def _compute_scan_time_matrix(self) -> np.ndarray:
+        """Compute scan time matrix TS[i,j] for UAV i scanning region j"""
+        TS = np.full((self.num_uavs, self.num_regions), np.inf)
+        for i in range(self.num_uavs):
+            for j in range(self.num_regions):
+                if self.V_matrix[i][j] > 0:
+                    area = self.regions_list[j].area
+                    scan_width = self.uavs_list[i].scan_width
+                    TS[i][j] = area / (self.V_matrix[i][j] * scan_width)
+        return TS
+    
+    def _compute_flight_time_matrix(self) -> np.ndarray:
+        """Compute flight time matrix TF[i,j,k] for UAV i flying from region j to k"""
+        TF = np.zeros((self.num_uavs, self.num_regions, self.num_regions))
+        for i in range(self.num_uavs):
+            for j in range(self.num_regions):
+                for k in range(self.num_regions):
+                    if j != k:
+                        TF[i][j][k] = self.D_matrix[j][k] / self.uavs_list[i].max_velocity
+        return TF
+    
+    def _compute_effective_time_ratio(
+        self, 
+        uav_idx: int, 
+        last_region_idx: int, 
+        target_region_idx: int
+    ) -> float:
         """
-        L_nn dùng cho Eq. (12). Tính trên đồ thị khoảng cách Euclid (như paper),
-        chỉ trên các NODES gồm base + vùng (đúng định nghĩa).
+        Compute effective time ratio ETR according to Eq. (9)
+        ETR[i,j,k] = TS[i,k] / (TF[i,j,k] + TS[i,k])
         """
-        current_idx = 0  # bắt đầu từ base
-        tour = [current_idx]
-        unvisited = list(range(1, self.n_points))
-        tour_length = 0.0
-
+        ts = self.TS_matrix[uav_idx][target_region_idx]
+        
+        if ts == np.inf:
+            return -np.inf
+        
+        if last_region_idx == -1:
+            # Flying from base (assume base at origin)
+            base_coords = (0, 0)
+            target_coords = self.regions_list[target_region_idx].coords
+            distance = math.sqrt(
+                (target_coords[0] - base_coords[0])**2 + 
+                (target_coords[1] - base_coords[1])**2
+            )
+            tf = distance / self.uavs_list[uav_idx].max_velocity
+        else:
+            tf = self.TF_matrix[uav_idx][last_region_idx][target_region_idx]
+        
+        etr = ts / (tf + ts)
+        return etr
+    
+    def region_allocation_phase(self) -> Dict[int, List[int]]:
+        """
+        Phase 1: Region Allocation (Algorithm 1)
+        Allocate regions to UAVs based on effective time ratio
+        """
+        left_regions = set(range(self.num_regions))
+        region_assignment = {i: [] for i in range(self.num_uavs)}
+        finish_time = [0.0] * self.num_uavs
+        last_region = [-1] * self.num_uavs  # -1 means at base
+        
+        while left_regions:
+            # Find UAV that would finish earliest
+            uav_idx = np.argmin(finish_time)
+            
+            # Compute ETR for all remaining regions
+            best_region = None
+            best_etr = -np.inf
+            
+            for region_idx in left_regions:
+                etr = self._compute_effective_time_ratio(
+                    uav_idx, 
+                    last_region[uav_idx], 
+                    region_idx
+                )
+                if etr > best_etr:
+                    best_etr = etr
+                    best_region = region_idx
+            
+            # Assign best region to UAV
+            if best_region is not None:
+                left_regions.remove(best_region)
+                region_assignment[uav_idx].append(best_region)
+                
+                # Update finish time
+                ts = self.TS_matrix[uav_idx][best_region]
+                if last_region[uav_idx] == -1:
+                    # From base
+                    base_coords = (0, 0)
+                    target_coords = self.regions_list[best_region].coords
+                    distance = math.sqrt(
+                        (target_coords[0] - base_coords[0])**2 + 
+                        (target_coords[1] - base_coords[1])**2
+                    )
+                    tf = distance / self.uavs_list[uav_idx].max_velocity
+                else:
+                    tf = self.TF_matrix[uav_idx][last_region[uav_idx]][best_region]
+                
+                finish_time[uav_idx] += tf + ts
+                last_region[uav_idx] = best_region
+        
+        return region_assignment
+    
+    def _nearest_neighbor_tour(self, regions: List[int]) -> Tuple[List[int], float]:
+        """Get initial tour using nearest neighbor heuristic"""
+        if len(regions) <= 1:
+            return regions, 0.0
+        
+        unvisited = set(regions)
+        current = regions[0]
+        unvisited.remove(current)
+        tour = [current]
+        total_length = 0.0
+        
         while unvisited:
-            nearest = min(unvisited, key=lambda j: self.dist_matrix[current_idx, j])
-            tour_length += self.dist_matrix[current_idx, nearest]
-            current_idx = nearest
-            tour.append(current_idx)
-            unvisited.remove(current_idx)
-
-        # không cần quay về base cho L_nn theo paper (dùng như hằng số khởi tạo)
-        return tour, tour_length
-
-    def _initialize(self):
-        # Ma trận khoảng cách + heuristic
-        self.dist_matrix = np.zeros((self.n_points, self.n_points), dtype=float)
-        for i in range(self.n_points):
-            for j in range(self.n_points):
-                self.dist_matrix[i, j] = calculate_distance(self.points[i].coords, self.points[j].coords)
-
-        self.eta = 1.0 / (self.dist_matrix + 1e-12)  # heuristic (Eq. (13)); tránh chia 0 ở đường chéo
-
-        # Khởi tạo pheromone theo Eq. (12) với m = số vùng (exclude base)
-        _, L_nn = self._calculate_nearest_neighbour_tour()
-        m = self.n_points - 1  # số vùng (không tính base)
-        if m <= 0 or L_nn <= 0:
-            # trường hợp biên: 0–1 vùng => đặt giá trị an toàn
-            initial_pheromone = 1.0
-        else:
-            initial_pheromone = 1.0 / (m * L_nn)
-
-        self.tau0 = initial_pheromone
-        self.tau = np.full((self.n_points, self.n_points), initial_pheromone, dtype=float)
-
-    def _calculate_tour_time(self, tour: List[int]) -> float:
+            nearest = min(unvisited, key=lambda x: self.D_matrix[current][x])
+            total_length += self.D_matrix[current][nearest]
+            tour.append(nearest)
+            current = nearest
+            unvisited.remove(nearest)
+        
+        return tour, total_length
+    
+    def order_optimization_phase(
+        self, 
+        uav_idx: int, 
+        assigned_regions: List[int]
+    ) -> List[int]:
         """
-        Thời gian tour theo Eq. (7): sum_{edges} (TF + TS(điểm đến)).
-        Mặc định KHÔNG cộng TF quay về base (theo phần thực nghiệm của paper).
+        Phase 2: Order Optimization (Algorithm 2)
+        Use ACS to optimize visiting order of regions for a single UAV
         """
-        total_time = 0.0
-        # nếu cần tính quay về base, thêm cạnh cuối -> base
-        path = list(tour)
-        if self.include_return_to_base and (tour[-1] != 0):
-            path = tour + [0]
-
-        for i in range(len(path) - 1):
-            a, b = path[i], path[i + 1]
-            p1, p2 = self.points[a], self.points[b]
-            tf = calculate_tf(self.uav, p1.coords, p2.coords)
-            ts = calculate_ts(self.uav, p2, self.V_matrix)  # TS của điểm đến
-            total_time += tf + ts
-        return total_time
-
-    def _select_next_region(self, current_idx: int, unvisited: List[int]) -> int:
-        """
-        Quy tắc chọn theo Eq. (10)–(11)
-        """
-        q = random.random()
-        attractiveness = (self.tau[current_idx, unvisited] ** self.alpha) * (self.eta[current_idx, unvisited] ** self.beta)
-        if q <= self.q0:
-            return unvisited[int(np.argmax(attractiveness))]
-        else:
-            probs = attractiveness / np.sum(attractiveness)
-            return int(np.random.choice(unvisited, p=probs))
-
-    def run(self) -> Tuple[List[int], float]:
-        best_tour, best_time = None, float('inf')
-
-        position = [random.choice(list(range(1, self.n_points))) for _ in range(self.n_ants)]
-
-        for gen in range(self.n_generations):
-            for _ in range(self.n_ants):
-                # Đặt kiến ngẫu nhiên trong các vùng (không phải base) – Algorithm 2 (bước 3)
-                start_idx = position[_]
-                tour = [start_idx]
-                unvisited = list(range(1, self.n_points))
-                unvisited.remove(start_idx)
-                current = start_idx
-
+        if len(assigned_regions) <= 1:
+            return assigned_regions
+        
+        num_regions_assigned = len(assigned_regions)
+        
+        # Initialize pheromone matrix
+        initial_tour, L = self._nearest_neighbor_tour(assigned_regions)
+        tau0 = 1.0 / (num_regions_assigned * L) if L > 0 else 1.0
+        
+        # Pheromone matrix (only between assigned regions)
+        tau = np.full((num_regions_assigned, num_regions_assigned), tau0)
+        
+        # Heuristic information matrix
+        eta = np.zeros((num_regions_assigned, num_regions_assigned))
+        for i in range(num_regions_assigned):
+            for j in range(num_regions_assigned):
+                if i != j:
+                    dist = self.D_matrix[assigned_regions[i]][assigned_regions[j]]
+                    eta[i][j] = 1.0 / dist if dist > 0 else 0.0
+        
+        # Best solution tracking
+        best_tour = initial_tour.copy()
+        best_length = self._compute_tour_length(uav_idx, best_tour)
+        
+        # ACS iterations
+        for iteration in range(self.max_iterations):
+            # Each ant constructs a solution
+            ant_tours = []
+            ant_lengths = []
+            
+            for ant in range(self.num_ants):
+                # Random starting position
+                current_idx = random.randint(0, num_regions_assigned - 1)
+                unvisited = set(range(num_regions_assigned))
+                unvisited.remove(current_idx)
+                tour = [current_idx]
+                
+                # Construct tour
                 while unvisited:
-                    nxt = self._select_next_region(current, unvisited)
+                    next_idx = self._select_next_region(
+                        current_idx, unvisited, tau, eta
+                    )
+                    
+                    # Local pheromone update
+                    tau[current_idx][next_idx] = (1 - self.rho) * tau[current_idx][next_idx] + self.rho * tau0
+                    
+                    tour.append(next_idx)
+                    unvisited.remove(next_idx)
+                    current_idx = next_idx
+                
+                # Convert indices back to region IDs
+                actual_tour = [assigned_regions[idx] for idx in tour]
+                tour_length = self._compute_tour_length(uav_idx, actual_tour)
+                
+                ant_tours.append(tour)
+                ant_lengths.append(tour_length)
+            
+            # Find best ant in this iteration
+            iteration_best_idx = np.argmin(ant_lengths)
+            iteration_best_tour = ant_tours[iteration_best_idx]
+            iteration_best_length = ant_lengths[iteration_best_idx]
+            
+            # Update global best
+            if iteration_best_length < best_length:
+                best_tour = [assigned_regions[idx] for idx in iteration_best_tour]
+                best_length = iteration_best_length
+            
+            # Global pheromone update
+            for i in range(len(iteration_best_tour)):
+                j = (i + 1) % len(iteration_best_tour)
+                idx_i = iteration_best_tour[i]
+                idx_j = iteration_best_tour[j]
+                tau[idx_i][idx_j] = (1 - self.epsilon) * tau[idx_i][idx_j] + \
+                                     self.epsilon * (1.0 / best_length)
+        
+        return best_tour
+    
+    def _select_next_region(
+        self, 
+        current_idx: int, 
+        unvisited: set, 
+        tau: np.ndarray, 
+        eta: np.ndarray
+    ) -> int:
+        """Select next region using ACS rule (Eq. 10, 11)"""
+        q = random.random()
+        
+        if q <= self.q0:
+            # Exploitation: choose best
+            best_value = -np.inf
+            best_idx = None
+            for j in unvisited:
+                value = (tau[current_idx][j] ** self.alpha) * (eta[current_idx][j] ** self.beta)
+                if value > best_value:
+                    best_value = value
+                    best_idx = j
+            return best_idx
+        else:
+            # Exploration: roulette wheel selection
+            probabilities = []
+            candidates = list(unvisited)
+            
+            for j in candidates:
+                prob = (tau[current_idx][j] ** self.alpha) * (eta[current_idx][j] ** self.beta)
+                probabilities.append(prob)
+            
+            total = sum(probabilities)
+            if total == 0:
+                return random.choice(candidates)
+            
+            probabilities = [p / total for p in probabilities]
+            return np.random.choice(candidates, p=probabilities)
+    
+    def _compute_tour_length(self, uav_idx: int, tour: List[int]) -> float:
+        """Compute total time for UAV to complete tour"""
+        if not tour:
+            return 0.0
+        
+        total_time = 0.0
+        
+        # From base to first region
+        base_coords = (0, 0)
+        first_coords = self.regions_list[tour[0]].coords
+        distance = math.sqrt(
+            (first_coords[0] - base_coords[0])**2 + 
+            (first_coords[1] - base_coords[1])**2
+        )
+        total_time += distance / self.uavs_list[uav_idx].max_velocity
+        total_time += self.TS_matrix[uav_idx][tour[0]]
+        
+        # Between regions
+        for i in range(len(tour) - 1):
+            total_time += self.TF_matrix[uav_idx][tour[i]][tour[i+1]]
+            total_time += self.TS_matrix[uav_idx][tour[i+1]]
+        
+        return total_time
+    
+    def solve(self) -> Dict:
+        """
+        Main solving method combining both phases
+        Returns optimized paths and completion times
+        """
+        print("Phase 1: Region Allocation...")
+        region_assignment = self.region_allocation_phase()
+        
+        print("Phase 2: Order Optimization...")
+        optimized_paths = {}
+        completion_times = {}
+        
+        for uav_idx in range(self.num_uavs):
+            if region_assignment[uav_idx]:
+                optimized_tour = self.order_optimization_phase(
+                    uav_idx, 
+                    region_assignment[uav_idx]
+                )
+                optimized_paths[uav_idx] = optimized_tour
+                completion_times[uav_idx] = self._compute_tour_length(uav_idx, optimized_tour)
+            else:
+                optimized_paths[uav_idx] = []
+                completion_times[uav_idx] = 0.0
+        
+        max_completion_time = max(completion_times.values()) if completion_times else 0.0
+        
+        return {
+            'paths': optimized_paths,
+            'completion_times': completion_times,
+            'max_completion_time': max_completion_time
+        }
 
-                    # Cập nhật cục bộ – Eq. (14)
-                    self.tau[current, nxt] = (1 - self.rho) * self.tau[current, nxt] + self.rho * self.tau0
 
-                    tour.append(nxt)
-                    unvisited.remove(nxt)
-                    current = nxt
-                    position[_] = current
-
-                # Thời gian (không cần thêm base ở đầu – ta sẽ thêm khi tính nếu cần)
-                full_tour_for_timing = [0] + tour  # bắt đầu từ base theo định nghĩa thời gian
-                tour_time = self._calculate_tour_time(full_tour_for_timing)
-
-                if tour_time < best_time:
-                    best_time = tour_time
-                    best_tour = full_tour_for_timing
-
-            # Cập nhật toàn cục – Eq. (15)–(16) (chỉ trên đường tốt nhất hiện tại)
-            if best_tour is not None and best_time > 0:
-                self.tau *= (1 - self.epsilon)
-                delta = self.epsilon * (1.0 / best_time)
-                for i in range(len(best_tour) - 1):
-                    a, b = best_tour[i], best_tour[i + 1]
-                    self.tau[a, b] += delta
-
-        # Trả về dãy id các điểm theo tour tốt nhất (bao gồm base id=-1 ở đầu)
-        best_ids = [self.points[i].id for i in best_tour] if best_tour is not None else []
-        return best_ids, best_time
+# Example usage
+if __name__ == "__main__":
+    # Sample data structure (you would load this from create_sample)
+    data = {
+        'uavs_list': [
+            {'id': 1, 'max_velocity': 20.0, 'scan_width': 10.0},
+            {'id': 2, 'max_velocity': 25.0, 'scan_width': 15.0},
+        ],
+        'regions_list': [
+            {'id': 1, 'coords': (100, 200), 'area': 5000},
+            {'id': 2, 'coords': (300, 400), 'area': 6000},
+            {'id': 3, 'coords': (500, 100), 'area': 4500},
+        ],
+        'V_matrix': [
+            [18.0, 19.0, 17.5],
+            [22.5, 23.0, 21.0]
+        ]
+    }
+    
+    # Initialize
+    uavs_list = [UAV(**uav_dict) for uav_dict in data['uavs_list']]
+    regions_list = [Region(**region) for region in data['regions_list']]
+    V_matrix = data['V_matrix']
+    
+    # Run APPA
+    appa = APPAAlgorithm(uavs_list, regions_list, V_matrix)
+    result = appa.solve()
+    
+    print("\n=== APPA Results ===")
+    print(f"Max Completion Time: {result['max_completion_time']:.2f}")
+    for uav_idx, path in result['paths'].items():
+        print(f"UAV {uav_idx}: {path} (Time: {result['completion_times'][uav_idx]:.2f})")

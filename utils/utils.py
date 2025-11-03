@@ -65,3 +65,28 @@ def calculate_path_time(uav: UAV,
         current_coords = region.coords # SỬA: Dùng region.coords
         
     return total_time
+
+def calculate_distance(p1: Tuple[float, float], p2: Tuple[float, float]) -> float:
+    return math.hypot(p1[0] - p2[0], p1[1] - p2[1])
+
+def calculate_ts(uav: UAV, region: Region, V_matrix: List[List[float]]) -> float:
+    """
+    TS_i,j = A_j / (V_i,j * W_i)  (Eq. (1) của paper: nếu V_i,j = 0 thì TS = +inf)
+    """
+    if region.id == -1:  # base (không có area)
+        return 0.0
+    uav_idx = uav.id - 1
+    region_idx = region.id - 1
+    scan_velocity = V_matrix[uav_idx][region_idx]  # V_i,j
+    if scan_velocity <= 0 or uav.scan_width <= 0:
+        return float('inf')
+    return region.area / (scan_velocity * uav.scan_width)
+
+def calculate_tf(uav: UAV, p1: Tuple[float, float], p2: Tuple[float, float]) -> float:
+    """
+    TF_i,j,k = D_j,k / V_max_i  (Eq. (2))
+    """
+    if uav.max_velocity <= 0:
+        return float('inf')
+    distance = calculate_distance(p1, p2)
+    return distance / uav.max_velocity

@@ -3,7 +3,9 @@ import math
 import copy
 import numpy as np
 from typing import List, Dict, Tuple, Optional
-from .appa import Region, UAV, calculate_tf, calculate_ts, calculate_distance, region_allocation, OrderOptimizerACS
+from utils.utils import calculate_ts, calculate_tf, calculate_distance
+from utils.config import Region, UAV
+from .appa import APPAAlgorithm
 from utils.create_sample import create_sample
 # ==============================
 # Gradient-Based Refinement
@@ -316,44 +318,39 @@ def iterative_appa_with_gradient(uavs: List[UAV], regions: List[Region],
             'q0': 0.9
         }
     
-    # Khởi tạo: Giai đoạn 1
+    # Khởi tạo: Giai đoạn 1 & 2 - Sử dụng APPA Algorithm
     if verbose:
-        print("\n[Iteration 0] Phân bổ ban đầu...")
+        print("\n[Iteration 0] Chạy APPA algorithm (Phân bổ + Tối ưu thứ tự)...")
     
-    assignment = region_allocation(uavs, regions, V_matrix, base_coords, verbose=False)
+    # Tạo instance của APPA Algorithm
+    appa = APPAAlgorithm(
+        uavs_list=uavs,
+        regions_list=regions,
+        V_matrix=V_matrix,
+        num_ants=acs_params.get('n_ants', 10),
+        max_iterations=acs_params.get('n_generations', 50),
+        alpha=acs_params.get('alpha', 1.0),
+        beta=acs_params.get('beta', 2.0),
+        rho=acs_params.get('rho', 0.1),
+        epsilon=acs_params.get('epsilon', 0.1),
+        q0=acs_params.get('q0', 0.9)
+    )
     
-    # Giai đoạn 2: Tối ưu thứ tự
-    if verbose:
-        print("[Iteration 0] Tối ưu thứ tự với ACS...")
+    # Chạy APPA để lấy kết quả ban đầu
+    appa_result = appa.solve()
     
-    optimized_assignment = {}
+    # Chuyển đổi kết quả từ dict[uav_idx, List[region_idx]] sang dict[uav_id, List[Region]]
+    # APPA trả về paths với key là uav_idx (0-based) và giá trị là list region_idx (0-based)
+    assignment = {}
     for uav in uavs:
-        regions_for_uav = assignment[uav.id]
-        if len(regions_for_uav) == 0:
-            optimized_assignment[uav.id] = []
-            continue
-        
-        optimizer = OrderOptimizerACS(
-            uav=uav,
-            regions=regions_for_uav,
-            V_matrix=V_matrix,
-            base_coords=base_coords,
-            **acs_params
-        )
-        
-        best_tour_ids, best_time = optimizer.run()
-        
-        # Chuyển từ IDs về objects (bỏ base id=-1)
-        optimized_path = [r for r in regions_for_uav 
-                         if r.id in best_tour_ids and r.id != -1]
-        
-        # Sắp xếp theo thứ tự trong best_tour_ids
-        id_to_region = {r.id: r for r in optimized_path}
-        ordered_path = [id_to_region[rid] for rid in best_tour_ids if rid != -1]
-        
-        optimized_assignment[uav.id] = ordered_path
-    
-    assignment = optimized_assignment
+        # Tìm uav_idx trong APPA (dựa vào thứ tự trong danh sách uavs)
+        uav_idx = uavs.index(uav)
+        if uav_idx in appa_result['paths']:
+            region_indices = appa_result['paths'][uav_idx]
+            # Chuyển từ region index sang Region object
+            assignment[uav.id] = [regions[idx] for idx in region_indices]
+        else:
+            assignment[uav.id] = []
     
     # Tính thời gian ban đầu
     current_time = calculate_system_completion_time(assignment, uavs, V_matrix, base_coords)
@@ -398,9 +395,23 @@ def iterative_appa_with_gradient(uavs: List[UAV], regions: List[Region],
         assignment = new_assignment
         stagnation_count = 0
         
-        # Giai đoạn 2: Tối ưu lại thứ tự với ACS
+        # Giai đoạn 2: Tối ưu lại thứ tự với APPA (chỉ order optimization)
         if verbose:
             print(f"[Iteration {iteration}] Tối ưu lại thứ tự với ACS...")
+        
+        # Tạo lại APPA instance để tối ưu order
+        appa_reopt = APPAAlgorithm(
+            uavs_list=uavs,
+            regions_list=regions,
+            V_matrix=V_matrix,
+            num_ants=acs_params.get('n_ants', 10),
+            max_iterations=acs_params.get('n_generations', 50),
+            alpha=acs_params.get('alpha', 1.0),
+            beta=acs_params.get('beta', 2.0),
+            rho=acs_params.get('rho', 0.1),
+            epsilon=acs_params.get('epsilon', 0.1),
+            q0=acs_params.get('q0', 0.9)
+        )
         
         optimized_assignment = {}
         for uav in uavs:
@@ -409,20 +420,15 @@ def iterative_appa_with_gradient(uavs: List[UAV], regions: List[Region],
                 optimized_assignment[uav.id] = []
                 continue
             
-            optimizer = OrderOptimizerACS(
-                uav=uav,
-                regions=regions_for_uav,
-                V_matrix=V_matrix,
-                base_coords=base_coords,
-                **acs_params
-            )
+            # Sử dụng order_optimization_phase từ APPA
+            uav_idx = uavs.index(uav)  # Lấy index của UAV trong danh sách
+            # Chuyển Region objects sang indices (0-based index trong danh sách regions)
+            assigned_region_indices = [regions.index(r) for r in regions_for_uav]
             
-            best_tour_ids, best_time_uav = optimizer.run()
+            optimized_indices = appa_reopt.order_optimization_phase(uav_idx, assigned_region_indices)
             
-            id_to_region = {r.id: r for r in regions_for_uav}
-            ordered_path = [id_to_region[rid] for rid in best_tour_ids if rid != -1]
-            
-            optimized_assignment[uav.id] = ordered_path
+            # Chuyển từ indices về Region objects
+            optimized_assignment[uav.id] = [regions[idx] for idx in optimized_indices]
         
         assignment = optimized_assignment
         
