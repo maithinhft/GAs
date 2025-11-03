@@ -325,10 +325,8 @@ class APPAAlgorithm:
         Main solving method combining both phases
         Returns optimized paths and completion times
         """
-        print("Phase 1: Region Allocation...")
         region_assignment = self.region_allocation_phase()
         
-        print("Phase 2: Order Optimization...")
         optimized_paths = {}
         completion_times = {}
         

@@ -5,7 +5,7 @@ import time
 from utils.create_sample import create_sample
 import matplotlib.pyplot as plt
 import tqdm
-from algorithm.appa import region_allocation, OrderOptimizerACS
+from algorithm.appa import APPAAlgorithm
 from dataclasses import dataclass
 from typing import Tuple
 from algorithm.mcaco import MultiColonyACS
@@ -105,30 +105,9 @@ def appa_run_sample(data):
     uavs_list = [UAV(**uav_dict) for uav_dict in data['uavs_list']]
     regions_list = [Region(**region) for region in data['regions_list']]
     V_matrix = data['V_matrix']
-    assignments = region_allocation(uavs_list, regions_list, V_matrix)
-
-    last_finish_time = 0
-    for uav in uavs_list:
-        regs = assignments[uav.id]
-        if regs:
-            optimizer = OrderOptimizerACS(
-                uav=uav,
-                regions=regs,
-                V_matrix=V_matrix,
-                base_coords=(0.0, 0.0),
-                n_ants=10,
-                n_generations=50,
-                alpha=1.0,
-                beta=2.0,
-                rho=0.1,
-                epsilon=0.1,
-                q0=0.9,
-                include_return_to_base=False,
-                rng_seed=42
-            )
-            best_path, best_time = optimizer.run()
-            last_finish_time = max(last_finish_time, best_time)
-    return last_finish_time
+    appa = APPAAlgorithm(uavs_list, regions_list, V_matrix)
+    result = appa.solve()
+    return result['max_completion_time']
 
 
 def ga_run_sample(data):
