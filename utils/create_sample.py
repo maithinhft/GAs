@@ -1,6 +1,6 @@
 import random
 import numpy as np
-from .config import Region, UAV, RANDOM_SEED
+from .config import Region, UAV, RANDOM_SEED, MAP_BOUNDARY
 
 def uunifast(total_sum, num_items):
     """
@@ -23,7 +23,7 @@ def generate_problem_instance(
     num_regions: int,
     system_area_ratio: float,
     system_drag_factor: float,
-    map_boundary: float = 5000.0
+    map_boundary: float = MAP_BOUNDARY
 ):
     """
     Sinh ra một bộ dữ liệu thử nghiệm theo phương pháp trong bài báo.

@@ -207,6 +207,10 @@ class APPAAlgorithm:
         best_tour = initial_tour.copy()
         best_length = self._compute_tour_length(uav_idx, best_tour)
         
+        # Stagnation counter for early stopping (optional optimization)
+        stagnation_count = 0
+        max_stagnation = 10  # Tăng lên để cho phép explore nhiều hơn
+        
         # ACS iterations
         for iteration in range(self.max_iterations):
             # Each ant constructs a solution
@@ -249,6 +253,13 @@ class APPAAlgorithm:
             if iteration_best_length < best_length:
                 best_tour = [assigned_regions[idx] for idx in iteration_best_tour]
                 best_length = iteration_best_length
+                stagnation_count = 0  # Reset khi có cải thiện
+            else:
+                stagnation_count += 1
+            
+            # Early stopping nếu không cải thiện trong nhiều iterations
+            if stagnation_count >= max_stagnation:
+                break
             
             # Global pheromone update
             for i in range(len(iteration_best_tour)):
@@ -318,6 +329,14 @@ class APPAAlgorithm:
             total_time += self.TF_matrix[uav_idx][tour[i]][tour[i+1]]
             total_time += self.TS_matrix[uav_idx][tour[i+1]]
         
+        # Return to base from last region
+        last_coords = self.regions_list[tour[-1]].coords
+        distance_back = math.sqrt(
+            (base_coords[0] - last_coords[0])**2 + 
+            (base_coords[1] - last_coords[1])**2
+        )
+        total_time += distance_back / self.uavs_list[uav_idx].max_velocity
+                
         return total_time
     
     def solve(self) -> Dict:

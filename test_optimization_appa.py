@@ -10,7 +10,7 @@ from algorithm.optimization_appa import iterative_appa_with_gradient
 
 def test_optimization_appa():
     print("Đang tạo sample data...")
-    sample = create_sample()
+    sample = create_sample(NUM_REGIONS=10)
 
     uavs = [UAV(**uav_data) for uav_data in sample['uavs_list']]
     regions = [Region(**region_data) for region_data in sample['regions_list']]
@@ -27,7 +27,7 @@ def test_optimization_appa():
         regions,
         V_matrix,
         base_coords=(0, 0),
-        max_iterations=3,  # Chỉ 3 iterations để test
+        max_iterations=100,  # Chỉ 3 iterations để test
         convergence_threshold=1.0,
         visualize_iterations=False,
         acs_params={
