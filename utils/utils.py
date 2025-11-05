@@ -63,6 +63,11 @@ def calculate_path_time(uav: UAV,
 
         total_time += fly_time + scan_time
         current_coords = region.coords # SỬA: Dùng region.coords
+    
+    # Thời gian bay về base (điểm xuất phát)
+    if region_path:  # Chỉ tính nếu có ít nhất 1 region
+        fly_back_time = get_fly_time(uav, current_coords, BASE_COORDS)
+        total_time += fly_back_time
         
     return total_time
 

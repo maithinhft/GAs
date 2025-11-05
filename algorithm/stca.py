@@ -51,5 +51,13 @@ def solve_stca_ne(uavs_list: List[UAV],
         uav_last_coords[best_uav_idx] = best_region.coords # SỬA: Dùng best_region.coords
         unassigned_regions.remove(best_region)
 
+    # Thêm thời gian bay về base cho mỗi UAV
+    for uav_idx in range(num_uavs):
+        if uav_paths[uav_idx]:  # Nếu UAV có ít nhất 1 region
+            uav = uavs_list[uav_idx]
+            last_coords = uav_last_coords[uav_idx]
+            fly_back_time = get_fly_time(uav, last_coords, BASE_COORDS)
+            uav_finish_times[uav_idx] += fly_back_time
+
     max_completion_time = max(t for t in uav_finish_times if t != float('inf'))
     return max_completion_time, uav_paths
