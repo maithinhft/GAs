@@ -260,7 +260,7 @@ def benchmark_all_run_time(num_uavs=4, num_regions=50, u=0.02, d=0.9):
             ga_end_time - ga_start_time, sdf_end_time - sdf_start_time, stca_end_time - stca_start_time]
 
 
-def benchmark_all(num_uavs=4, num_regions=50, u=0.02, d=0.9):
+def benchmark_all(num_uavs=4, num_regions=50, u=0.05, d=0.9):
     sample = create_sample(NUM_UAVS=num_uavs, NUM_REGIONS=num_regions,
                            SYSTEM_AREA_RATIO=u, SYSTEM_DRAG_FACTOR=d)
     return [optimization_run_sample(sample) / 60, appa_run_sample(sample) / 60, ga_run_sample(sample)/60, sdf_run_sample(sample)/60, stca_run_sample(sample)/60]
@@ -756,12 +756,12 @@ def main():
     plt.savefig('./fig/fig5.png')
     plt.close()
 
-    x_points = [_ for _ in range(1, 11)]
-    appa_y_points = [0 for _ in range(1, 11)]
-    ga_y_points = [0 for _ in range(1, 11)]
-    sdf_y_points = [0 for _ in range(1, 11)]
-    stca_ne_y_points = [0 for _ in range(1, 11)]
-    optimization_y_points = [0 for _ in range(1, 11)]
+    x_points = [_ for _ in range(2, 12, 2)]
+    appa_y_points = [0 for _ in range(2, 12, 2)]
+    ga_y_points = [0 for _ in range(2, 12, 2)]
+    sdf_y_points = [0 for _ in range(2, 12, 2)]
+    stca_ne_y_points = [0 for _ in range(2, 12, 2)]
+    optimization_y_points = [0 for _ in range(2, 12, 2)]
     for try_time in tqdm.tqdm(range(0, max_loop), desc="benchmark optimization - uav", position=0):
         for index, uav in enumerate(x_points):
             optimization_y_point, appa_y_point, ga_y_point, sdf_y_point, stca_ne_y_point = benchmark_all(

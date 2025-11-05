@@ -10,7 +10,7 @@ from algorithm.optimization_appa import iterative_appa_with_gradient
 
 def test_optimization_appa():
     print("Đang tạo sample data...")
-    sample = create_sample(NUM_REGIONS=10)
+    sample = create_sample(NUM_UAVS=2)
 
     uavs = [UAV(**uav_data) for uav_data in sample['uavs_list']]
     regions = [Region(**region_data) for region_data in sample['regions_list']]
