@@ -1,5 +1,5 @@
-max_loop = 100
-MAP_BOUNDARY = 500
+max_loop = 10
+MAP_BOUNDARY = 1000
 RANDOM_SEED = 100
 from dataclasses import dataclass
 
