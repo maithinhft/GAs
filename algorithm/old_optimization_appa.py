@@ -108,7 +108,7 @@ def quick_path_optimization_nearest_neighbor(path: List[Region], uav: UAV,
         return path
     
     # Bắt đầu từ vùng gần base nhất
-    remaining = set(path)  # Sử dụng set thay vì list (O(1) remove vs O(n))
+    remaining = path.copy()  # Sử dụng list thay vì set
     optimized = []
     current_pos = base_coords
     
@@ -117,7 +117,7 @@ def quick_path_optimization_nearest_neighbor(path: List[Region], uav: UAV,
         nearest = min(remaining, key=lambda r: calculate_distance(current_pos, r.coords))
         optimized.append(nearest)
         current_pos = nearest.coords
-        remaining.discard(nearest)  # O(1) thay vì remove() O(n)
+        remaining.remove(nearest)
     
     return optimized
 
@@ -184,18 +184,9 @@ def estimate_time_change(region: Region, source_uav: UAV, target_uav: UAV,
 def gradient_based_refinement(current_assignment: Dict[int, List[Region]],
                               uavs: List[UAV], V_matrix: List[List[float]],
                               base_coords: Tuple[float, float] = (0.0, 0.0),
-                              verbose: bool = False,
-                              quick_mode: bool = False) -> Tuple[Dict[int, List[Region]], bool]:
+                              verbose: bool = False) -> Tuple[Dict[int, List[Region]], bool]:
     """
     Tối ưu phân bổ bằng gradient information
-    
-    Args:
-        current_assignment: Phân bổ hiện tại
-        uavs: Danh sách UAV
-        V_matrix: Ma trận vận tốc
-        base_coords: Tọa độ base
-        verbose: In log
-        quick_mode: Nếu True, dừng sớm khi tìm được move tốt (không tìm best move)
     
     Returns:
         (new_assignment, improved): Assignment mới và có cải thiện hay không
@@ -203,13 +194,8 @@ def gradient_based_refinement(current_assignment: Dict[int, List[Region]],
     if verbose:
         print("  → Bắt đầu gradient-based refinement...")
     
-    # Cache thời gian hiện tại (để tránh tính lại)
-    current_max_time = calculate_system_completion_time(current_assignment, uavs, V_matrix, base_coords)
-    
     # Tính độ nhạy (sensitivity) cho tất cả các moves có thể
-    # Trong quick_mode, dừng khi tìm được move tốt
-    best_move = None
-    best_time_change = 0.0
+    sensitivity = {}
     
     for source_uav in uavs:
         source_path = current_assignment.get(source_uav.id, [])
@@ -222,29 +208,19 @@ def gradient_based_refinement(current_assignment: Dict[int, List[Region]],
                 # Tính thay đổi thời gian khi chuyển region
                 time_change = estimate_time_change(
                     region, source_uav, target_uav,
-                    current_assignment, uavs, V_matrix, base_coords,
-                    use_quick_optimization=True
+                    current_assignment, uavs, V_matrix, base_coords
                 )
                 
-                # Nếu tìm được move tốt và ở quick_mode, lưu lại và tiếp tục sau
-                if time_change < best_time_change:
-                    best_time_change = time_change
-                    best_move = (region.id, source_uav.id, target_uav.id)
-                    
-                    # Trong quick_mode, dừng sớm nếu cải thiện đủ tốt
-                    if quick_mode and time_change < -0.5:
-                        break
-            
-            if quick_mode and best_move is not None and best_time_change < -0.5:
-                break
-        
-        if quick_mode and best_move is not None and best_time_change < -0.5:
-            break
+                sensitivity[(region.id, source_uav.id, target_uav.id)] = time_change
     
-    if best_move is None:
+    if not sensitivity:
         if verbose:
             print("  → Không có move nào khả thi")
         return current_assignment, False
+    
+    # Tìm move tốt nhất (giảm thời gian nhiều nhất)
+    best_move = min(sensitivity, key=sensitivity.get)
+    best_time_change = sensitivity[best_move]
     
     if verbose:
         region_id, source_id, target_id = best_move
