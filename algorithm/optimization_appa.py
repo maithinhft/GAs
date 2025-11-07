@@ -108,16 +108,18 @@ def quick_path_optimization_nearest_neighbor(path: List[Region], uav: UAV,
         return path
     
     # Bắt đầu từ vùng gần base nhất
-    remaining = set(path)  # Sử dụng set thay vì list (O(1) remove vs O(n))
+    # Sử dụng list indices để tránh unhashable type error
+    remaining_indices = set(range(len(path)))  # Sử dụng indices thay vì Region objects
     optimized = []
     current_pos = base_coords
     
-    while remaining:
+    while remaining_indices:
         # Tìm vùng gần nhất với vị trí hiện tại
-        nearest = min(remaining, key=lambda r: calculate_distance(current_pos, r.coords))
-        optimized.append(nearest)
-        current_pos = nearest.coords
-        remaining.discard(nearest)  # O(1) thay vì remove() O(n)
+        nearest_idx = min(remaining_indices, key=lambda idx: calculate_distance(current_pos, path[idx].coords))
+        nearest_region = path[nearest_idx]
+        optimized.append(nearest_region)
+        current_pos = nearest_region.coords
+        remaining_indices.discard(nearest_idx)  # O(1) thay vì remove() O(n)
     
     return optimized
 
