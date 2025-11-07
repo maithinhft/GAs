@@ -707,7 +707,7 @@ def main():
     plt.plot(x_points, stca_ne_y_points, marker='^', linestyle='-', label='stca_ne')
 
     plt.xlabel("Number of regions", fontsize=12)
-    plt.ylabel("Task completion time (m)", fontsize=12)
+    plt.ylabel("Task completion time (s)", fontsize=12)
     plt.grid(True, which='both', linestyle='--', linewidth=0.5)
     plt.legend(loc='upper center', bbox_to_anchor=(
         0.5, 1.05), ncol=5, fancybox=True, shadow=False)
