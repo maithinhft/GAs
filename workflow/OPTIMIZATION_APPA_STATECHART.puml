@@ -1,0 +1,39 @@
+@startuml OPTIMIZATION_APPA_Flowchart
+title Iterative APPA - Gradient-Based Refinement (Simple)
+
+start
+:APPA: Phase 1 & 2;
+:Initialization: T0, best_time;
+
+repeat
+  :Gradient Refinement;
+  :Find Best Move;
+  if (Found move?) then (yes)
+    :Apply Move;
+    :stagnation = 0;
+  else (no)
+    :stagnation++;
+  endif
+  
+  :ACS Reordering;
+  :Calculate T_new;
+  
+  if (stagnation >= 10?) then (yes)
+    stop
+  endif
+  
+  if (improvement < 1.0?) then (yes)
+    stop
+  endif
+  
+  if (iteration > max?) then (yes)
+    stop
+  endif
+
+repeat while (Continue?)
+
+:OUTPUT: best_assignment;
+:END;
+stop
+
+@enduml

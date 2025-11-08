@@ -1,0 +1,44 @@
+@startuml GRADIENT_REFINEMENT_Simple
+title Gradient-Based Refinement - Simple Flowchart
+
+start
+:INPUT: assignment, uavs, V_matrix;
+
+:Cache: current_max_time;
+:best_move = None;
+:best_time_change = 0;
+
+repeat
+  :For each source_uav, region, target_uav;
+  if (target_uav == source_uav?) then (yes)
+    :Skip;
+  else (no)
+    :time_change = estimate_time_change();
+    if (time_change < best_time_change?) then (yes)
+      :Update best_move;
+    else (no)
+    endif
+  endif
+repeat while (more UAVs/regions?) 
+
+if (best_move == None?) then (yes)
+  :RETURN: (current_assignment, False);
+  stop
+else (no)
+endif
+
+if (best_time_change < -1e-6?) then (yes, improvement found)
+  :Extract best_move;
+  :Remove region from source;
+  :Reoptimize source path;
+  :Insert region into target (best position);
+  :RETURN: (new_assignment, True);
+  stop
+else (no)
+  :RETURN: (current_assignment, False);
+  stop
+endif
+
+end
+
+@enduml
