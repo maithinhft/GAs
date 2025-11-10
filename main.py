@@ -15,6 +15,7 @@ from algorithm.q_learning_acs import q_learning_acs_run_optimized
 from algorithm.ga import solve_ga
 from algorithm.sdf import solve_sdf
 from algorithm.stca import solve_stca_ne
+from algorithm.ils import solve_ils
 
 
 def create_table_image(headers, data, filename='academic_table.png', figsize=(12, 5)):
@@ -159,6 +160,16 @@ def mcaco_run_sample(data):
     return cost
 
 
+def ils_run_sample(data):
+    uavs_list = [UAV(**uav_dict) for uav_dict in data['uavs_list']]
+    regions_list = [Region(**region) for region in data['regions_list']]
+    V_matrix = data['V_matrix']
+
+    best_fitness, _ = solve_ils(uavs_list, regions_list, V_matrix)
+
+    return best_fitness
+
+
 def optimization_run_sample(data):
     uavs = [UAV(**uav_data) for uav_data in data['uavs_list']]
     regions = [Region(**region_data) for region_data in data['regions_list']]
@@ -236,9 +247,9 @@ def benchmark_all_run_time(num_uavs=4, num_regions=50, u=0.02, d=0.9):
     sample = create_sample(NUM_UAVS=num_uavs, NUM_REGIONS=num_regions,
                            SYSTEM_AREA_RATIO=u, SYSTEM_DRAG_FACTOR=d)
 
-    optimization_start_time = time.perf_counter()
-    optimization_run_sample(sample)
-    optimization_end_time = time.perf_counter()
+    ils_start_time = time.perf_counter()
+    ils_run_sample(sample)
+    ils_end_time = time.perf_counter()
 
     appa_start_time = time.perf_counter()
     appa_run_sample(sample)
@@ -248,22 +259,13 @@ def benchmark_all_run_time(num_uavs=4, num_regions=50, u=0.02, d=0.9):
     ga_run_sample(sample)
     ga_end_time = time.perf_counter()
 
-    sdf_start_time = time.perf_counter()
-    sdf_run_sample(sample)
-    sdf_end_time = time.perf_counter()
-
-    stca_start_time = time.perf_counter()
-    stca_run_sample(sample)
-    stca_end_time = time.perf_counter()
-
-    return [optimization_end_time - optimization_start_time, appa_end_time - appa_start_time,
-            ga_end_time - ga_start_time, sdf_end_time - sdf_start_time, stca_end_time - stca_start_time]
+    return [ils_end_time - ils_start_time, appa_end_time - appa_start_time, ga_end_time - ga_start_time]
 
 
 def benchmark_all(num_uavs=4, num_regions=50, u=0.05, d=0.9):
     sample = create_sample(NUM_UAVS=num_uavs, NUM_REGIONS=num_regions,
                            SYSTEM_AREA_RATIO=u, SYSTEM_DRAG_FACTOR=d)
-    return [optimization_run_sample(sample) / 60, appa_run_sample(sample) / 60, ga_run_sample(sample)/60, sdf_run_sample(sample)/60, stca_run_sample(sample)/60]
+    return [ils_run_sample(sample), appa_run_sample(sample) / 60, ga_run_sample(sample)/60]
 
 
 def main():
@@ -629,40 +631,29 @@ def main():
 
     # * overview all
     x_points = [_ for _ in range(5, 55, 5)]
+    ils_y_points = [0 for _ in range(5, 55, 5)]
     appa_y_points = [0 for _ in range(5, 55, 5)]
     ga_y_points = [0 for _ in range(5, 55, 5)]
-    sdf_y_points = [0 for _ in range(5, 55, 5)]
-    stca_ne_y_points = [0 for _ in range(5, 55, 5)]
-    optimization_y_points = [0 for _ in range(5, 55, 5)]
     for try_time in tqdm.tqdm(range(0, max_loop), desc="benchmark optimization - region", position=0):
         for index, num_regions in enumerate(x_points):
-            optimization_y_point, appa_y_point, ga_y_point, sdf_y_point, stca_ne_y_point = benchmark_all_run_time(
+            ils_y_point, appa_y_point, ga_y_point = benchmark_all_run_time(
                 num_regions=num_regions)
 
-            optimization_y_points[index] += optimization_y_point
+            ils_y_points[index] += ils_y_point
             appa_y_points[index] += appa_y_point
             ga_y_points[index] += ga_y_point
-            sdf_y_points[index] += sdf_y_point
-            stca_ne_y_points[index] += stca_ne_y_point
 
-    for index, _ in enumerate(optimization_y_points):
-        optimization_y_points[index] /= max_loop
+    for index, _ in enumerate(ils_y_points):
+        ils_y_points[index] /= max_loop
     for index, _ in enumerate(appa_y_points):
         appa_y_points[index] /= max_loop
     for index, _ in enumerate(ga_y_points):
         ga_y_points[index] /= max_loop
-    for index, _ in enumerate(sdf_y_points):
-        sdf_y_points[index] /= max_loop
-    for index, _ in enumerate(stca_ne_y_points):
-        stca_ne_y_points[index] /= max_loop
 
-    plt.plot(x_points, optimization_y_points, marker='*',
+    plt.plot(x_points, ils_y_points, marker='*',
              linestyle='-', label='optimization')
     plt.plot(x_points, appa_y_points, marker='o', linestyle='-', label='appa')
     plt.plot(x_points, ga_y_points, marker='x', linestyle='-', label='ga')
-    plt.plot(x_points, sdf_y_points, marker='v', linestyle='-', label='sdf')
-    plt.plot(x_points, stca_ne_y_points, marker='^',
-             linestyle='-', label='stca_ne')
 
     plt.xlabel("Number of regions", fontsize=12)
     plt.ylabel("Execute time (m)", fontsize=12)
@@ -673,38 +664,29 @@ def main():
     plt.close()
 
     x_points = [_ for _ in range(5, 55, 5)]
+    ils_y_points = [0 for _ in range(5, 55, 5)]
     appa_y_points = [0 for _ in range(5, 55, 5)]
     ga_y_points = [0 for _ in range(5, 55, 5)]
-    sdf_y_points = [0 for _ in range(5, 55, 5)]
-    stca_ne_y_points = [0 for _ in range(5, 55, 5)]
-    optimization_y_points = [0 for _ in range(5,55, 5)]
     for try_time in tqdm.tqdm(range(0, max_loop), desc="benchmark optimization - region", position=0):
         for index, num_regions in enumerate(x_points):
-            optimization_y_point, appa_y_point, ga_y_point, sdf_y_point, stca_ne_y_point = benchmark_all(
+            ils_y_point, appa_y_point, ga_y_point = benchmark_all(
                 num_regions=num_regions)
 
-            optimization_y_points[index] += optimization_y_point
+            ils_y_points[index] += ils_y_point
             appa_y_points[index] += appa_y_point
             ga_y_points[index] += ga_y_point
-            sdf_y_points[index] += sdf_y_point
-            stca_ne_y_points[index] += stca_ne_y_point
 
-    for index, _ in enumerate(optimization_y_points):
-        optimization_y_points[index] /= max_loop
+    for index, _ in enumerate(ils_y_points):
+        ils_y_points[index] /= max_loop
     for index, _ in enumerate(appa_y_points):
         appa_y_points[index] /= max_loop
     for index, _ in enumerate(ga_y_points):
         ga_y_points[index] /= max_loop
-    for index, _ in enumerate(sdf_y_points):
-        sdf_y_points[index] /= max_loop
-    for index, _ in enumerate(stca_ne_y_points):
-        stca_ne_y_points[index] /= max_loop
 
-    plt.plot(x_points, optimization_y_points, marker='*', linestyle='-', label='optimization' )
+    plt.plot(x_points, ils_y_points, marker='*',
+             linestyle='-', label='optimization')
     plt.plot(x_points, appa_y_points, marker='o', linestyle='-', label='appa')
     plt.plot(x_points, ga_y_points, marker='x', linestyle='-', label='ga')
-    plt.plot(x_points, sdf_y_points, marker='v', linestyle='-', label='sdf')
-    plt.plot(x_points, stca_ne_y_points, marker='^', linestyle='-', label='stca_ne')
 
     plt.xlabel("Number of regions", fontsize=12)
     plt.ylabel("Task completion time (s)", fontsize=12)
@@ -715,38 +697,29 @@ def main():
     plt.close()
 
     x_points = [_/10 for _ in range(1, 10)]
+    ils_y_points = [0 for _ in range(1, 10)]
     appa_y_points = [0 for _ in range(1, 10)]
     ga_y_points = [0 for _ in range(1, 10)]
-    sdf_y_points = [0 for _ in range(1, 10)]
-    stca_ne_y_points = [0 for _ in range(1, 10)]
-    optimization_y_points = [0 for _ in range(1,10)]
     for try_time in tqdm.tqdm(range(0, max_loop), desc="benchmark optimization - sdf", position=0):
         for index, sdf in enumerate(x_points):
-            optimization_y_point, appa_y_point, ga_y_point, sdf_y_point, stca_ne_y_point = benchmark_all(
+            ils_y_point, appa_y_point, ga_y_point = benchmark_all(
                 d=sdf)
 
-            optimization_y_points[index] += optimization_y_point
+            ils_y_points[index] += ils_y_point
             appa_y_points[index] += appa_y_point
             ga_y_points[index] += ga_y_point
-            sdf_y_points[index] += sdf_y_point
-            stca_ne_y_points[index] += stca_ne_y_point
 
-    for index, _ in enumerate(optimization_y_points):
-        optimization_y_points[index] /= max_loop
+    for index, _ in enumerate(ils_y_points):
+        ils_y_points[index] /= max_loop
     for index, _ in enumerate(appa_y_points):
         appa_y_points[index] /= max_loop
     for index, _ in enumerate(ga_y_points):
         ga_y_points[index] /= max_loop
-    for index, _ in enumerate(sdf_y_points):
-        sdf_y_points[index] /= max_loop
-    for index, _ in enumerate(stca_ne_y_points):
-        stca_ne_y_points[index] /= max_loop
 
-    plt.plot(x_points, optimization_y_points, marker='*', linestyle='-', label='optimization' )
+    plt.plot(x_points, ils_y_points, marker='*',
+             linestyle='-', label='optimization')
     plt.plot(x_points, appa_y_points, marker='o', linestyle='-', label='appa')
     plt.plot(x_points, ga_y_points, marker='x', linestyle='-', label='ga')
-    plt.plot(x_points, sdf_y_points, marker='v', linestyle='-', label='sdf')
-    plt.plot(x_points, stca_ne_y_points, marker='^', linestyle='-', label='stca_ne')
 
     plt.xlabel("System drag factor", fontsize=12)
     plt.ylabel("Task completion time (m)", fontsize=12)
@@ -757,40 +730,29 @@ def main():
     plt.close()
 
     x_points = [_ for _ in range(2, 12, 2)]
+    ils_y_points = [0 for _ in range(2, 12, 2)]
     appa_y_points = [0 for _ in range(2, 12, 2)]
     ga_y_points = [0 for _ in range(2, 12, 2)]
-    sdf_y_points = [0 for _ in range(2, 12, 2)]
-    stca_ne_y_points = [0 for _ in range(2, 12, 2)]
-    optimization_y_points = [0 for _ in range(2, 12, 2)]
     for try_time in tqdm.tqdm(range(0, max_loop), desc="benchmark optimization - uav", position=0):
         for index, uav in enumerate(x_points):
-            optimization_y_point, appa_y_point, ga_y_point, sdf_y_point, stca_ne_y_point = benchmark_all(
+            ils_y_point, appa_y_point, ga_y_point, sdf_y_point, stca_ne_y_point = benchmark_all(
                 num_uavs=uav)
 
-            optimization_y_points[index] += optimization_y_point
+            ils_y_points[index] += ils_y_point
             appa_y_points[index] += appa_y_point
             ga_y_points[index] += ga_y_point
-            sdf_y_points[index] += sdf_y_point
-            stca_ne_y_points[index] += stca_ne_y_point
 
-    for index, _ in enumerate(optimization_y_points):
-        optimization_y_points[index] /= max_loop
+    for index, _ in enumerate(ils_y_points):
+        ils_y_points[index] /= max_loop
     for index, _ in enumerate(appa_y_points):
         appa_y_points[index] /= max_loop
     for index, _ in enumerate(ga_y_points):
         ga_y_points[index] /= max_loop
-    for index, _ in enumerate(sdf_y_points):
-        sdf_y_points[index] /= max_loop
-    for index, _ in enumerate(stca_ne_y_points):
-        stca_ne_y_points[index] /= max_loop
 
-    plt.plot(x_points, optimization_y_points, marker='*',
+    plt.plot(x_points, ils_y_points, marker='*',
              linestyle='-', label='optimization')
     plt.plot(x_points, appa_y_points, marker='o', linestyle='-', label='appa')
     plt.plot(x_points, ga_y_points, marker='x', linestyle='-', label='ga')
-    plt.plot(x_points, sdf_y_points, marker='v', linestyle='-', label='sdf')
-    plt.plot(x_points, stca_ne_y_points, marker='^',
-             linestyle='-', label='stca_ne')
 
     plt.xlabel("Number of UAVs", fontsize=12)
     plt.ylabel("Task completion time (m)", fontsize=12)
