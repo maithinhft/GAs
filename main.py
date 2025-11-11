@@ -16,7 +16,6 @@ from algorithm.ga import solve_ga
 from algorithm.sdf import solve_sdf
 from algorithm.stca import solve_stca_ne
 from algorithm.ils import solve_ils
-from algorithm.ils_enhanced import solve_ils_enhanced
 from algorithm.vns import solve_vns
 from algorithm.memetic import solve_memetic
 
