@@ -1,17 +1,14 @@
 import random
 import numpy as np
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 import math
-
-# Giả định có các class và hàm utils
-# from utils.utils import UAV, Region, BASE_COORDS, get_distance, calculate_path_time
 
 def get_distance(coords1: Tuple[float, float], coords2: Tuple[float, float]) -> float:
     """Tính khoảng cách Euclidean giữa 2 điểm"""
     return math.sqrt((coords2[0] - coords1[0])**2 + (coords2[1] - coords1[1])**2)
 
 class ACSOptimizer:
-    """Ant Colony System optimizer cho TSP cục bộ của mỗi UAV"""
+    """Ant Colony System optimizer cho TSP cục bộ của mỗi UAV - OPTIMIZED VERSION"""
     
     def __init__(
         self,
@@ -20,8 +17,8 @@ class ACSOptimizer:
         v_matrix: List[List[float]],
         uav_idx: int,
         all_regions_list: List,
-        num_ants: int = 10,
-        max_iterations: int = 50,
+        num_ants: int = 5,  # GIẢM: 10 -> 5
+        max_iterations: int = 20,  # GIẢM: 50 -> 20
         alpha: float = 1.0,
         beta: float = 2.0,
         rho: float = 0.1,
@@ -53,6 +50,12 @@ class ACSOptimizer:
                         regions[i].coords, 
                         regions[j].coords
                     )
+        
+        # CACHE: Precompute region indices in all_regions_list
+        self.region_idx_cache = {
+            id(region): all_regions_list.index(region) 
+            for region in regions
+        }
     
     def _nearest_neighbor_tour(self) -> Tuple[List[int], float]:
         """Get initial tour using nearest neighbor"""
@@ -75,7 +78,7 @@ class ACSOptimizer:
         return tour, total_length
     
     def _compute_tour_time(self, tour_indices: List[int]) -> float:
-        """Tính tổng thời gian cho tour (từ base -> regions -> cuối)"""
+        """Tính tổng thời gian cho tour (từ base -> regions -> cuối) - CACHED"""
         if not tour_indices:
             return 0.0
         
@@ -87,8 +90,8 @@ class ACSOptimizer:
         dist = get_distance(BASE_COORDS, first_region.coords)
         total_time += dist / self.uav.max_velocity
         
-        # Scan first region
-        region_idx_in_all = self.all_regions_list.index(first_region)
+        # Scan first region - USE CACHE
+        region_idx_in_all = self.region_idx_cache[id(first_region)]
         scan_velocity = self.v_matrix[self.uav_idx][region_idx_in_all]
         if scan_velocity > 0:
             total_time += first_region.area / (scan_velocity * self.uav.scan_width)
@@ -102,8 +105,8 @@ class ACSOptimizer:
             dist = self.dist_matrix[tour_indices[i]][tour_indices[i + 1]]
             total_time += dist / self.uav.max_velocity
             
-            # Scan time
-            region_idx_in_all = self.all_regions_list.index(next_region)
+            # Scan time - USE CACHE
+            region_idx_in_all = self.region_idx_cache[id(next_region)]
             scan_velocity = self.v_matrix[self.uav_idx][region_idx_in_all]
             if scan_velocity > 0:
                 total_time += next_region.area / (scan_velocity * self.uav.scan_width)
@@ -114,6 +117,10 @@ class ACSOptimizer:
         """Tối ưu tour bằng ACS, trả về danh sách Region objects"""
         if self.num_regions <= 1:
             return self.regions
+        
+        # OPTIMIZATION: Nếu quá ít regions, dùng NN thay vì ACS
+        if self.num_regions <= 3:
+            return self._nn_fallback()
         
         # Initialize pheromone
         initial_tour, L = self._nearest_neighbor_tour()
@@ -130,6 +137,10 @@ class ACSOptimizer:
         # Best solution tracking
         best_tour = initial_tour.copy()
         best_time = self._compute_tour_time(best_tour)
+        
+        # OPTIMIZATION: Early stopping if no improvement
+        no_improvement_count = 0
+        max_no_improvement = 5
         
         # ACS iterations
         for iteration in range(self.max_iterations):
@@ -167,6 +178,13 @@ class ACSOptimizer:
             if iteration_best_time < best_time:
                 best_tour = iteration_best_tour
                 best_time = iteration_best_time
+                no_improvement_count = 0
+            else:
+                no_improvement_count += 1
+            
+            # EARLY STOPPING
+            if no_improvement_count >= max_no_improvement:
+                break
             
             # Global pheromone update
             for i in range(len(iteration_best_tour)):
@@ -179,6 +197,11 @@ class ACSOptimizer:
         # Convert indices back to Region objects
         optimized_regions = [self.regions[idx] for idx in best_tour]
         return optimized_regions
+    
+    def _nn_fallback(self) -> List:
+        """Fallback to NN for small problem sizes"""
+        tour_indices, _ = self._nearest_neighbor_tour()
+        return [self.regions[idx] for idx in tour_indices]
     
     def _select_next(self, current_idx: int, unvisited: set, tau: np.ndarray, eta: np.ndarray) -> int:
         """Select next region using ACS rule"""
@@ -221,15 +244,16 @@ def _ga_acs_solve_path(
 ) -> List:
     """
     Sắp xếp lộ trình cho UAV bằng ACS hoặc Nearest Neighbor
-    
-    Args:
-        use_acs: True = dùng ACS, False = dùng NN (như GA gốc)
     """
     if not regions_for_uav:
         return []
     
+    # OPTIMIZATION: Chỉ dùng ACS nếu có đủ regions
+    if len(regions_for_uav) <= 3:
+        use_acs = False
+    
     if not use_acs:
-        # Fallback to Nearest Neighbor (GA original)
+        # Fallback to Nearest Neighbor
         BASE_COORDS = (0, 0)
         path = []
         current_coords = BASE_COORDS
@@ -263,13 +287,16 @@ def _ga_acs_solve_path(
         v_matrix=v_matrix,
         uav_idx=uav_idx,
         all_regions_list=all_regions_list,
-        num_ants=10,
-        max_iterations=50
+        num_ants=5,  # GIẢM
+        max_iterations=20  # GIẢM
     )
     
     optimized_path = acs.optimize()
     return optimized_path
 
+
+# CACHE để tránh tính lại fitness cho chromosome giống nhau
+_fitness_cache: Dict[tuple, float] = {}
 
 def _ga_acs_calculate_fitness(
     chromosome: List[int],
@@ -279,11 +306,13 @@ def _ga_acs_calculate_fitness(
     use_acs: bool = True
 ) -> float:
     """
-    Tính toán độ thích nghi (max_completion_time)
-    
-    Args:
-        use_acs: True = dùng ACS optimize, False = dùng NN
+    Tính toán độ thích nghi với CACHING
     """
+    # OPTIMIZATION: Cache fitness for identical chromosomes
+    chromosome_key = tuple(chromosome)
+    if chromosome_key in _fitness_cache:
+        return _fitness_cache[chromosome_key]
+    
     num_uavs = len(uavs_list)
     uav_times = [0.0] * num_uavs
     
@@ -314,39 +343,49 @@ def _ga_acs_calculate_fitness(
         path_time = calculate_path_time(uav, ordered_path, v_matrix, uav_idx, regions_list)
         uav_times[uav_idx] = path_time
     
-    return max(uav_times)
+    fitness = max(uav_times)
+    
+    # CACHE result
+    _fitness_cache[chromosome_key] = fitness
+    
+    # OPTIMIZATION: Giới hạn cache size
+    if len(_fitness_cache) > 200:
+        _fitness_cache.clear()
+    
+    return fitness
 
 
 def solve_ga_acs(
     uavs_list: List,
     regions_list: List,
     v_matrix: List[List[float]],
-    population_size: int = 50,
-    generations: int = 100,
-    mutation_rate: float = 0.05,
+    population_size: int = 30,  # GIẢM: 50 -> 30
+    generations: int = 50,  # GIẢM: 100 -> 50
+    mutation_rate: float = 0.1,  # TĂNG để explore nhanh
     crossover_rate: float = 0.8,
     use_acs: bool = True,
-    local_search_interval: int = 10
+    local_search_interval: int = 0,  # TẮT local search mặc định
+    elite_size: int = 5  # THÊM: Elitism
 ) -> Tuple[float, List[List]]:
     """
-    Giải bài toán bằng Hybrid GA-ACS Algorithm
+    Giải bài toán bằng OPTIMIZED Hybrid GA-ACS Algorithm
     
-    Args:
-        uavs_list: Danh sách UAV
-        regions_list: Danh sách Region
-        v_matrix: Ma trận vận tốc quét
-        population_size: Kích thước quần thể
-        generations: Số thế hệ
-        mutation_rate: Tỷ lệ đột biến
-        crossover_rate: Tỷ lệ lai ghép
-        use_acs: True = dùng ACS, False = dùng NN (GA gốc)
-        local_search_interval: Cứ mỗi X thế hệ thì chạy local search
-    
-    Returns:
-        (best_fitness, final_paths_ordered): Thời gian tốt nhất và đường đi cho từng UAV
+    MAJOR OPTIMIZATIONS:
+    - Giảm population_size: 50 -> 30
+    - Giảm generations: 100 -> 50  
+    - Giảm ACS iterations: 50 -> 20
+    - Giảm num_ants: 10 -> 5
+    - Thêm fitness caching
+    - Thêm early stopping
+    - Thêm elitism
+    - Tắt local search mặc định
     """
     num_uavs = len(uavs_list)
     num_regions = len(regions_list)
+    
+    # Clear cache
+    global _fitness_cache
+    _fitness_cache.clear()
     
     # Initialize population
     population = []
@@ -356,6 +395,9 @@ def solve_ga_acs(
     
     best_chromosome = None
     best_fitness = float('inf')
+    
+    # Track best solutions (ELITISM)
+    elite_chromosomes = []
     
     for gen in range(generations):
         # Evaluate fitness
@@ -370,17 +412,22 @@ def solve_ga_acs(
                 best_fitness = fitness_scores[i]
                 best_chromosome = population[i][:]
         
+        # ELITISM: Keep top solutions
+        sorted_indices = sorted(range(len(fitness_scores)), key=lambda i: fitness_scores[i])
+        elite_chromosomes = [population[i][:] for i in sorted_indices[:elite_size]]
+        
         # Selection: Tournament selection (k=2)
-        new_population = []
-        for _ in range(population_size):
+        new_population = elite_chromosomes[:]  # Start with elites
+        
+        while len(new_population) < population_size:
             p1_idx, p2_idx = random.sample(range(population_size), 2)
             winner_idx = p1_idx if fitness_scores[p1_idx] < fitness_scores[p2_idx] else p2_idx
             new_population.append(population[winner_idx][:])
         
-        population = new_population
+        population = new_population[:population_size]
         
         # Crossover: Uniform crossover
-        for i in range(0, population_size, 2):
+        for i in range(elite_size, population_size, 2):  # Skip elites
             if i + 1 < population_size and random.random() < crossover_rate:
                 p1 = population[i]
                 p2 = population[i + 1]
@@ -391,12 +438,12 @@ def solve_ga_acs(
                 population[i], population[i + 1] = c1, c2
         
         # Mutation: Random reassignment
-        for i in range(population_size):
+        for i in range(elite_size, population_size):  # Skip elites
             for j in range(num_regions):
                 if random.random() < mutation_rate:
                     population[i][j] = random.randint(0, num_uavs - 1)
         
-        # Local search on best chromosome (optional enhancement)
+        # OPTIONAL: Local search (disabled by default)
         if local_search_interval > 0 and (gen + 1) % local_search_interval == 0:
             improved_chromosome = _local_search_2opt(
                 best_chromosome,
@@ -446,36 +493,39 @@ def _local_search_2opt(
     use_acs: bool
 ) -> List[int]:
     """
-    Local search: Thử swap 2 regions giữa các UAV để cải thiện fitness
+    Local search: Swap 2 regions - GIỚI HẠN attempts
     """
     best_chromosome = chromosome[:]
     best_fitness = _ga_acs_calculate_fitness(best_chromosome, uavs_list, regions_list, v_matrix, use_acs)
     
     improved = True
-    max_attempts = 20
+    max_attempts = 5  # GIẢM: 20 -> 5
     attempts = 0
     
     while improved and attempts < max_attempts:
         improved = False
         attempts += 1
         
-        # Try swapping regions between UAVs
-        for i in range(len(chromosome)):
-            for j in range(i + 1, len(chromosome)):
-                # Swap
-                new_chromosome = best_chromosome[:]
-                new_chromosome[i], new_chromosome[j] = new_chromosome[j], new_chromosome[i]
-                
-                # Evaluate
-                new_fitness = _ga_acs_calculate_fitness(new_chromosome, uavs_list, regions_list, v_matrix, use_acs)
-                
-                if new_fitness < best_fitness:
-                    best_fitness = new_fitness
-                    best_chromosome = new_chromosome
-                    improved = True
-                    break
+        # OPTIMIZATION: Chỉ thử một số swap ngẫu nhiên
+        num_swaps = min(20, len(chromosome) * (len(chromosome) - 1) // 2)
+        
+        for _ in range(num_swaps):
+            i = random.randint(0, len(chromosome) - 1)
+            j = random.randint(0, len(chromosome) - 1)
+            if i == j:
+                continue
             
-            if improved:
+            # Swap
+            new_chromosome = best_chromosome[:]
+            new_chromosome[i], new_chromosome[j] = new_chromosome[j], new_chromosome[i]
+            
+            # Evaluate
+            new_fitness = _ga_acs_calculate_fitness(new_chromosome, uavs_list, regions_list, v_matrix, use_acs)
+            
+            if new_fitness < best_fitness:
+                best_fitness = new_fitness
+                best_chromosome = new_chromosome
+                improved = True
                 break
     
     return best_chromosome
@@ -483,7 +533,7 @@ def _local_search_2opt(
 
 def calculate_path_time(uav, ordered_path: List, v_matrix: List[List[float]], uav_idx: int, all_regions_list: List) -> float:
     """
-    Tính tổng thời gian cho đường đi (từ base -> regions -> end)
+    Tính tổng thời gian cho đường đi
     """
     if not ordered_path:
         return 0.0
@@ -518,53 +568,3 @@ def calculate_path_time(uav, ordered_path: List, v_matrix: List[List[float]], ua
             total_time += next_region.area / (scan_velocity * uav.scan_width)
     
     return total_time
-
-
-# Example usage
-if __name__ == "__main__":
-    # Mock classes for testing
-    class UAV:
-        def __init__(self, id, max_velocity, scan_width):
-            self.id = id
-            self.max_velocity = max_velocity
-            self.scan_width = scan_width
-    
-    class Region:
-        def __init__(self, id, coords, area):
-            self.id = id
-            self.coords = coords
-            self.area = area
-    
-    # Sample data
-    uavs_list = [
-        UAV(1, 20.0, 10.0),
-        UAV(2, 25.0, 15.0),
-    ]
-    
-    regions_list = [
-        Region(1, (100, 200), 5000),
-        Region(2, (300, 400), 6000),
-        Region(3, (500, 100), 4500),
-        Region(4, (200, 500), 5500),
-    ]
-    
-    v_matrix = [
-        [18.0, 19.0, 17.5, 18.5],
-        [22.5, 23.0, 21.0, 22.0]
-    ]
-    
-    # Run GA-ACS
-    best_fitness, final_paths = solve_ga_acs(
-        uavs_list,
-        regions_list,
-        v_matrix,
-        population_size=30,
-        generations=50,
-        use_acs=True
-    )
-    
-    print(f"\n=== GA-ACS Results ===")
-    print(f"Best completion time: {best_fitness:.2f}")
-    for uav_idx, path in enumerate(final_paths):
-        region_ids = [r.id for r in path]
-        print(f"UAV {uav_idx}: {region_ids}")

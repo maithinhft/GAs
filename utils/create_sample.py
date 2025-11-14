@@ -39,7 +39,7 @@ def generate_problem_instance(
     for i in range(1, num_uavs + 1):
         uav = UAV(
             id=i,
-            max_velocity=random.uniform(15, 30),
+            max_velocity=random.uniform(20, 50),
             scan_width=random.uniform(5, 20)
         )
         uavs_list.append(uav)
