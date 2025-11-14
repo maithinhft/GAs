@@ -18,6 +18,7 @@ from algorithm.stca import solve_stca_ne
 from algorithm.ils import solve_ils
 from algorithm.vns import solve_vns
 from algorithm.memetic import solve_memetic
+from algorithm.ga_acs import solve_ga_acs
 
 
 def create_table_image(headers, data, filename='academic_table.png', figsize=(12, 5)):
@@ -171,17 +172,6 @@ def ils_run_sample(data):
     
     return best_fitness
 
-
-def ils_enhanced_run_sample(data):
-    uavs_list = [UAV(**uav_dict) for uav_dict in data['uavs_list']]
-    regions_list = [Region(**region) for region in data['regions_list']]
-    V_matrix = data['V_matrix']
-    
-    best_fitness, _ = solve_ils_enhanced(uavs_list, regions_list, V_matrix)
-    
-    return best_fitness
-
-
 def vns_run_sample(data):
     uavs_list = [UAV(**uav_dict) for uav_dict in data['uavs_list']]
     regions_list = [Region(**region) for region in data['regions_list']]
@@ -201,6 +191,14 @@ def memetic_run_sample(data):
     
     return best_fitness
 
+def ga_acs_run_sample(data):
+    uavs_list = [UAV(**uav_dict) for uav_dict in data['uavs_list']]
+    regions_list = [Region(**region) for region in data['regions_list']]
+    V_matrix = data['V_matrix']
+    
+    best_fitness, _ = solve_ga_acs(uavs_list, regions_list, V_matrix)
+    
+    return best_fitness
 
 def optimization_run_sample(data):
     uavs = [UAV(**uav_data) for uav_data in data['uavs_list']]
@@ -280,7 +278,7 @@ def benchmark_all_run_time(num_uavs=4, num_regions=50, u=0.02, d=0.9):
                            SYSTEM_AREA_RATIO=u, SYSTEM_DRAG_FACTOR=d)
 
     ils_start_time = time.perf_counter()
-    memetic_run_sample(sample)
+    ga_acs_run_sample(sample)
     ils_end_time = time.perf_counter()
 
     appa_start_time = time.perf_counter()
@@ -297,7 +295,7 @@ def benchmark_all_run_time(num_uavs=4, num_regions=50, u=0.02, d=0.9):
 def benchmark_all(num_uavs=4, num_regions=50, u=0.05, d=0.9):
     sample = create_sample(NUM_UAVS=num_uavs, NUM_REGIONS=num_regions,
                            SYSTEM_AREA_RATIO=u, SYSTEM_DRAG_FACTOR=d)
-    return [memetic_run_sample(sample), appa_run_sample(sample) / 60, ga_run_sample(sample)/60]
+    return [ga_acs_run_sample(sample), appa_run_sample(sample) / 60, ga_run_sample(sample)/60]
 
 
 def main():
