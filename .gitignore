@@ -17,3 +17,5 @@ thuc_hanh
 *.png
 
 test.*
+
+*.ipynb

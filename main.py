@@ -7,8 +7,177 @@ import matplotlib.pyplot as plt
 import tqdm
 from algorithm.appa import APPAAlgorithm
 from dataclasses import dataclass
-from typing import Tuple
+from typing import Tuple, List
 from utils.config import *
+
+
+def visualize_uav_paths(uav_paths: List[List[Region]], 
+                        uavs_list: List[UAV] = None,
+                        title: str = "UAV Coverage Paths",
+                        save_path: str = None,
+                        show: bool = True):
+    """
+    Visualize lộ trình của từng UAV.
+    
+    Args:
+        uav_paths: List các paths, mỗi path là List[Region] cho 1 UAV
+        uavs_list: List các UAV (optional, để hiển thị thông tin)
+        title: Tiêu đề của biểu đồ
+        save_path: Đường dẫn lưu file (None = không lưu)
+        show: Có hiển thị trực tiếp không
+    """
+    colors = ['#e74c3c', '#3498db', '#2ecc71', '#9b59b6', '#f39c12', 
+              '#1abc9c', '#e91e63', '#00bcd4', '#ff5722', '#607d8b']
+    
+    fig, ax = plt.subplots(figsize=(12, 10))
+    
+    base_x, base_y = BASE_COORDS
+    ax.scatter(base_x, base_y, c='black', s=200, marker='s', zorder=5, label='Base')
+    ax.annotate('BASE', (base_x, base_y), textcoords="offset points", 
+                xytext=(0, 10), ha='center', fontsize=10, fontweight='bold')
+    
+    for uav_idx, path in enumerate(uav_paths):
+        if not path:
+            continue
+            
+        color = colors[uav_idx % len(colors)]
+        uav_label = f'UAV {uav_idx + 1}'
+        if uavs_list and uav_idx < len(uavs_list):
+            uav_label = f'UAV {uavs_list[uav_idx].id}'
+        
+        path_coords = [(r.coords[0], r.coords[1]) for r in path]
+        
+        full_path = [(base_x, base_y)] + path_coords + [(base_x, base_y)]
+        
+        xs = [p[0] for p in full_path]
+        ys = [p[1] for p in full_path]
+        
+        ax.plot(xs, ys, color=color, linewidth=2, alpha=0.7, 
+                linestyle='-', marker='o', markersize=4, label=uav_label)
+        
+        for i in range(len(full_path) - 1):
+            x1, y1 = full_path[i]
+            x2, y2 = full_path[i + 1]
+            dx, dy = x2 - x1, y2 - y1
+            
+            mid_x = (x1 + x2) / 2
+            mid_y = (y1 + y2) / 2
+            
+            if abs(dx) > 1 or abs(dy) > 1: 
+                ax.annotate('', xy=(mid_x + dx*0.1, mid_y + dy*0.1),
+                           xytext=(mid_x - dx*0.1, mid_y - dy*0.1),
+                           arrowprops=dict(arrowstyle='->', color=color, lw=1.5))
+        
+        for idx, region in enumerate(path):
+            rx, ry = region.coords
+            ax.scatter(rx, ry, c=color, s=100, zorder=4, edgecolors='white', linewidth=1)
+            ax.annotate(f'{idx+1}', (rx, ry), textcoords="offset points",
+                       xytext=(5, 5), fontsize=8, color=color, fontweight='bold')
+    
+    all_regions_plotted = set()
+    for path in uav_paths:
+        for r in path:
+            all_regions_plotted.add(r.id)
+    
+    ax.set_xlabel('X Coordinate', fontsize=12)
+    ax.set_ylabel('Y Coordinate', fontsize=12)
+    if title:
+        ax.set_title(title, fontsize=14, fontweight='bold')
+    ax.legend(loc='upper right', fontsize=10)
+    ax.grid(True, alpha=0.3)
+    ax.set_aspect('equal', adjustable='box')
+    
+    total_regions = sum(len(p) for p in uav_paths)
+    info_text = f'Total Regions: {total_regions}\nUAVs: {len(uav_paths)}'
+    ax.text(0.02, 0.98, info_text, transform=ax.transAxes, fontsize=10,
+            verticalalignment='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+    
+    plt.tight_layout()
+    
+    if save_path:
+        os.makedirs(os.path.dirname(save_path) if os.path.dirname(save_path) else '.', exist_ok=True)
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        print(f'✅ Saved visualization to: {save_path}')
+    
+    if show:
+        plt.show()
+    else:
+        plt.close()
+    
+    return fig
+
+def visualize_clusters(uav_paths: List[List[Region]], 
+                      uavs_list: List[UAV] = None,
+                      title: str = "UAV Clusters",
+                      save_path: str = None,
+                      show: bool = True):
+    """
+    Visualize các cụm region được phân chia cho mỗi UAV.
+    Sử dụng Convex Hull để bao quanh các cụm.
+    """
+    from scipy.spatial import ConvexHull
+    
+    colors = ['#e74c3c', '#3498db', '#2ecc71', '#9b59b6', '#f39c12', 
+              '#1abc9c', '#e91e63', '#00bcd4', '#ff5722', '#607d8b']
+    
+    fig, ax = plt.subplots(figsize=(12, 10))
+    
+    base_x, base_y = BASE_COORDS
+    ax.scatter(base_x, base_y, c='black', s=200, marker='s', zorder=5, label='Base')
+    ax.annotate('BASE', (base_x, base_y), textcoords="offset points", 
+                xytext=(0, 10), ha='center', fontsize=10, fontweight='bold')
+    
+    for uav_idx, path in enumerate(uav_paths):
+        if not path:
+            continue
+            
+        color = colors[uav_idx % len(colors)]
+        uav_label = f'UAV {uav_idx + 1}'
+        if uavs_list and uav_idx < len(uavs_list):
+            uav_label = f'UAV {uavs_list[uav_idx].id}'
+            
+        points = np.array([(r.coords[0], r.coords[1]) for r in path])
+        
+        ax.scatter(points[:, 0], points[:, 1], c=color, s=100, alpha=0.6, label=uav_label)
+        
+        for r in path:
+            ax.annotate(f'{r.id}', (r.coords[0], r.coords[1]), 
+                        xytext=(0, 5), textcoords='offset points',
+                        ha='center', va='bottom', fontsize=9, fontweight='bold', color=color)
+        
+        if len(points) >= 3:
+            try:
+                hull = ConvexHull(points)
+                for simplex in hull.simplices:
+                    ax.plot(points[simplex, 0], points[simplex, 1], color=color, linestyle='--', linewidth=2, alpha=0.8)
+                
+                ax.fill(points[hull.vertices, 0], points[hull.vertices, 1], color=color, alpha=0.1)
+            except Exception as e:
+                print(f"Could not draw convex hull for UAV {uav_idx}: {e}")
+        elif len(points) == 2:
+            ax.plot(points[:, 0], points[:, 1], color=color, linestyle='--', linewidth=2, alpha=0.8)
+    
+    ax.set_xlabel('X Coordinate', fontsize=12)
+    ax.set_ylabel('Y Coordinate', fontsize=12)
+    if title:
+        ax.set_title(title, fontsize=14, fontweight='bold')
+    ax.legend(loc='upper right', fontsize=10)
+    ax.grid(True, alpha=0.3)
+    ax.set_aspect('equal', adjustable='box')
+    
+    plt.tight_layout()
+    
+    if save_path:
+        os.makedirs(os.path.dirname(save_path) if os.path.dirname(save_path) else '.', exist_ok=True)
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        print(f'✅ Saved cluster visualization to: {save_path}')
+    
+    if show:
+        plt.show()
+    else:
+        plt.close()
+    
+    return fig
 
 def create_table_image(headers, data, filename='academic_table.png', figsize=(12, 5)):
     """
@@ -104,6 +273,7 @@ def appa_run_sample(data):
 
 
 def main():
+    
     pass
 
 
