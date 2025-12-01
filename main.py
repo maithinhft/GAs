@@ -9,6 +9,7 @@ from algorithm.appa import APPAAlgorithm
 from dataclasses import dataclass
 from typing import Tuple, List
 from utils.config import *
+import json
 
 
 def visualize_uav_paths(uav_paths: List[List[Region]], 
@@ -273,7 +274,10 @@ def appa_run_sample(data):
 
 
 def main():
-    
+    data = create_sample()
+    #tạo file sample.json chứa data 
+    with open('sample.json', 'w') as f:
+        json.dump(data, f, indent=4)
     pass
 
 
