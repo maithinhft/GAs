@@ -65,44 +65,63 @@ class LLMAPPAAlgorithm(APPAAlgorithm):
             })
 
         # Construct Prompt
-        prompt = f"""
-        You are an expert in Multi-UAV Task Allocation.
-        Your task is to allocate Regions to UAVs to minimize the Makespan (Max Completion Time).
+        prompt = f"""You are an expert in UAV task allocation optimization.
 
-        **Input Data:**
-        **UAVs:** (id, max_velocity, scan_width)
-        {json.dumps(uav_data, indent=2)}
+            Given the following problem:
+            - Number of UAVs: {self.num_uavs}
+            - Number of regions to scan: {self.num_regions}
+            - Base location: (0, 0)
 
-        **Regions:** (id, coords, area, compatible_uavs)
-        {json.dumps(region_data, indent=2)}
+            UAV Information:
+            {json.dumps(uav_data, indent=2)}
 
-        **Constraints:**
-        1. (C1) Each UAV performs at most one mission cycle (Base -> Regions -> Base).
-        2. (C2) The number of active UAVs cannot exceed the total available UAVs.
-        3. (C3) If a UAV is assigned any regions, it must complete a full tour returning to the base.
-        4. (C4) Every region must be visited exactly once by exactly one UAV.
-        5. **CRITICAL**: A region `j` can ONLY be assigned to UAV `i` if it is in the `compatible_uavs` list (i.e., Velocity[i][j] > 0).
+            Region Information (coords and area):
+            {json.dumps(region_data, indent=2)}
 
-        **Objective:**
-        - Minimize the Makespan (the maximum total time assigned to any single UAV).
-        - Scan Time = Region Area / (UAV Velocity * Scan Width).
-        - Balance the total Scan Time across UAVs.
+            Scan Velocity Matrix V[i][j] (UAV i's scan velocity at region j):
+            {json.dumps(self.V_matrix.tolist(), indent=2)}
 
-        **Output:**
-        JSON object: {{"uav_id": [region_ids], ...}}
-        Example: {{"0": [1, 2], "1": [3]}}
-        """
+            Formulas:
+            - Scan Time: TS[i,j] = Area[j] / (V[i,j] * ScanWidth[i])
+            - Flight Time: TF[i,j,k] = Distance(j,k) / MaxVelocity[i]
+            - Total Time for UAV i: Sum of all flight times + scan times for assigned regions
+
+            Task: Allocate ALL {self.num_regions} regions to {self.num_uavs} UAVs to minimize the maximum completion time among all UAVs.
+
+            IMPORTANT CONSTRAINTS:
+            1. Every region MUST be assigned to exactly ONE UAV
+            2. Each UAV can be assigned 0 or more regions
+            3. If V[i,j] = 0, UAV i CANNOT scan region j
+            4. Balance the workload among UAVs to minimize max completion time
+
+            Return ONLY a valid JSON object in this exact format (no markdown, no explanation):
+            {{
+            "allocation": {{
+                "0": [list of region IDs],
+                "1": [list of region IDs],
+                ...
+            }}
+            }}
+
+            Example format:
+            {{"allocation": {{"0": [0, 3, 5], "1": [1, 2], "2": [4]}}}}"""
 
         try:
             response = self.model.generate_content(prompt)
             content = response.text
             allocation_json = json.loads(content)
             
+            # Handle nested "allocation" key if present
+            if "allocation" in allocation_json:
+                allocation_map = allocation_json["allocation"]
+            else:
+                allocation_map = allocation_json
+
             # Convert keys to int and ensure all regions are assigned
             region_assignment = {i: [] for i in range(self.num_uavs)}
             assigned_regions = set()
 
-            for uav_id_str, assigned_list in allocation_json.items():
+            for uav_id_str, assigned_list in allocation_map.items():
                 uav_id = int(uav_id_str)
                 if 0 <= uav_id < self.num_uavs:
                     for region_id in assigned_list:
