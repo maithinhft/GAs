@@ -18,7 +18,7 @@ class LLMAPPAAlgorithm(APPAAlgorithm):
         uavs_list: List[UAV],
         regions_list: List[Region],
         V_matrix: List[List[float]],
-        model_name: str = "gemini-2.5-pro",
+        model_name: str = "gemini-3.0-pro",
         api_key: str = None,
         **kwargs
     ):
