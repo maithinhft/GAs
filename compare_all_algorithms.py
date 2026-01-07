@@ -89,12 +89,12 @@ ALGORITHM_CONFIGS = {
         'marker': 's'
     },
     'PSO-APPA': {
-        'name': 'PSO-APPA',
+        'name': 'PSO',
         'color': '#2ecc71',
         'marker': '^'
     },
     'GWO-APPA': {
-        'name': 'GWO-APPA',
+        'name': 'GWO',
         'color': '#9b59b6',
         'marker': 'D'
     },
