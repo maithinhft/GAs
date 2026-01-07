@@ -19,6 +19,7 @@ Các metrics so sánh:
 import os
 import time
 import random
+import csv
 import numpy as np
 import matplotlib.pyplot as plt
 from typing import Dict, List, Tuple
@@ -230,6 +231,64 @@ def print_comparison_table(stats: Dict, metric_keys: List[str]):
         print(row)
     
     print("="*120)
+
+
+def save_statistics_to_csv(stats: Dict, metric_keys: List[str], filename: str = './fig/statistics_comparison.csv'):
+    """Lưu thống kê vào file CSV"""
+    with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
+        writer = csv.writer(csvfile)
+        
+        # Header
+        header = ['Metric']
+        for algo_name in stats.keys():
+            header.extend([f'{ALGORITHM_CONFIGS[algo_name]["name"]}_mean', 
+                          f'{ALGORITHM_CONFIGS[algo_name]["name"]}_std',
+                          f'{ALGORITHM_CONFIGS[algo_name]["name"]}_min',
+                          f'{ALGORITHM_CONFIGS[algo_name]["name"]}_max'])
+        writer.writerow(header)
+        
+        # Data rows
+        for metric in metric_keys:
+            row = [metric]
+            for algo_name in stats.keys():
+                if metric in stats[algo_name]:
+                    row.extend([
+                        stats[algo_name][metric]['mean'],
+                        stats[algo_name][metric]['std'],
+                        stats[algo_name][metric]['min'],
+                        stats[algo_name][metric]['max']
+                    ])
+                else:
+                    row.extend(['N/A', 'N/A', 'N/A', 'N/A'])
+            writer.writerow(row)
+    
+    print(f"  ✅ Statistics saved to {filename}")
+
+
+def save_scalability_to_csv(scalability_results: Dict, filename: str = './fig/scalability_results.csv'):
+    """Lưu kết quả scalability test vào file CSV"""
+    with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
+        writer = csv.writer(csvfile)
+        
+        # Header
+        header = ['Num_Regions']
+        for algo_name in ALGORITHM_CONFIGS.keys():
+            header.extend([f'{ALGORITHM_CONFIGS[algo_name]["name"]}_max_time', 
+                          f'{ALGORITHM_CONFIGS[algo_name]["name"]}_exec_time'])
+        writer.writerow(header)
+        
+        # Data rows
+        regions = scalability_results['regions']
+        for i, num_regions in enumerate(regions):
+            row = [num_regions]
+            for algo_name in ALGORITHM_CONFIGS.keys():
+                row.extend([
+                    scalability_results[f'{algo_name}_max'][i],
+                    scalability_results[f'{algo_name}_time'][i]
+                ])
+            writer.writerow(row)
+    
+    print(f"  ✅ Scalability results saved to {filename}")
 
 
 # ============================================================================
@@ -758,6 +817,10 @@ if __name__ == "__main__":
     # In bảng so sánh
     print_comparison_table(stats, key_metrics)
     
+    # Lưu dữ liệu vào CSV
+    print("\n💾 Saving data to CSV...")
+    save_statistics_to_csv(stats, key_metrics)
+    
     # Vẽ các biểu đồ
     print("\n📊 Generating plots...")
     
@@ -768,6 +831,7 @@ if __name__ == "__main__":
     # Scalability test
     print("\n📈 Running scalability test...")
     scalability_results = run_scalability_test(num_uavs=4, regions_range=[10, 20, 30, 40, 50])
+    save_scalability_to_csv(scalability_results)
     plot_scalability(scalability_results)
     
     # In tổng kết
