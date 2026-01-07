@@ -59,7 +59,7 @@ pip install -r requirements.txt
 
 ---
 
-## 🚀 Cách chạy
+## Cách chạy
 
 ### Chạy so sánh tất cả các thuật toán:
 
@@ -122,7 +122,7 @@ prj/
 
 ---
 
-## ⚙️ Cấu hình tham số
+## Cấu hình tham số
 
 Có thể điều chỉnh các tham số trong `compare_all_algorithms.py`:
 
