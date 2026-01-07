@@ -762,13 +762,8 @@ if __name__ == "__main__":
     print("\n📊 Generating plots...")
     
     plot_max_completion_time(stats)
-    plot_workload_balance(stats)
     plot_multiple_metrics(stats)
     plot_execution_time(stats)
-    plot_deviation_ratio(stats)
-    plot_convergence_curves(all_results)
-    plot_boxplot_comparison(all_results)
-    plot_radar_chart(stats)
     
     # Scalability test
     print("\n📈 Running scalability test...")
