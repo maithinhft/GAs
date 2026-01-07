@@ -1,6 +1,6 @@
 # UAV Coverage Path Planning - Optimization Algorithms Comparison
 
-## 📋 Tổng quan
+## Tổng quan
 
 Dự án này triển khai và so sánh các thuật toán tối ưu hóa cho bài toán **Coverage Path Planning** của các UAV (Unmanned Aerial Vehicles) không đồng nhất.
 
@@ -16,14 +16,14 @@ Dự án này triển khai và so sánh các thuật toán tối ưu hóa cho b�
 
 ---
 
-## 🛠️ Yêu cầu hệ thống
+##  Yêu cầu hệ thống
 
 - **Python**: >= 3.10
 - **Hệ điều hành**: Windows, Linux, macOS
 
 ---
 
-## 📦 Cài đặt
+## Cài đặt
 
 ### 1. Clone repository
 
@@ -78,7 +78,7 @@ Chương trình sẽ tạo ra các biểu đồ so sánh trong thư mục `./fig
 
 ---
 
-## 📁 Cấu trúc Project
+## Cấu trúc Project
 
 ```
 prj/
@@ -105,7 +105,7 @@ prj/
 
 ---
 
-## 📊 Metrics đánh giá
+## Metrics đánh giá
 
 ### Time Metrics
 - **Max Completion Time**: Thời gian tối đa để hoàn thành (minimize)
@@ -149,6 +149,6 @@ gwo_max_iterations = 100
 
 ---
 
-## 📝 License
+## License
 
 MIT License
