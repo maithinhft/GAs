@@ -1,51 +1,154 @@
-# GAs - Genetic Algorithms for UAV Coverage Path Planning
+# UAV Coverage Path Planning - Optimization Algorithms Comparison
 
-## Overview
-This project implements and compares APPA (Ant Colony System-based) algorithms for coverage path planning of heterogeneous UAVs. The implementation includes:
-- **Original APPA**: Uses Effective Time Ratio (ETR) for Phase 1 (region allocation)
-- **LLM-based APPA**: Uses Large Language Models (LLMs) for Phase 1 (region allocation)
+## 📋 Tổng quan
 
-Both methods use the same Phase 2 (order optimization) based on Ant Colony System.
+Dự án này triển khai và so sánh các thuật toán tối ưu hóa cho bài toán **Coverage Path Planning** của các UAV (Unmanned Aerial Vehicles) không đồng nhất.
 
-## Comprehensive Metrics Evaluation
+### Các thuật toán được triển khai:
 
-The project includes comprehensive metrics evaluation similar to the paper, including:
+| Thuật toán | Mô tả |
+|------------|-------|
+| **APPA (Original)** | Sử dụng ETR heuristic cho Phase 1 + ACS cho Phase 2 |
+| **GA-APPA** | Genetic Algorithm cho Phase 1 + ACS cho Phase 2 |
+| **PSO-APPA** | Particle Swarm Optimization cho Phase 1 + ACS cho Phase 2 |
+| **GWO-APPA** | Grey Wolf Optimizer cho Phase 1 + ACS cho Phase 2 |
+| **Pure GA** | Genetic Algorithm cho cả allocation và ordering |
+
+---
+
+## 🛠️ Yêu cầu hệ thống
+
+- **Python**: >= 3.10
+- **Hệ điều hành**: Windows, Linux, macOS
+
+---
+
+## 📦 Cài đặt
+
+### 1. Clone repository
+
+```bash
+git clone https://github.com/maithinhft/GAs.git
+cd GAs
+```
+
+### 2. Tạo môi trường ảo (khuyến nghị)
+
+```bash
+# Linux/macOS
+python -m venv venv
+source venv/bin/activate
+
+# Windows
+python -m venv venv
+venv\Scripts\activate
+```
+
+### 3. Cài đặt thư viện
+
+```bash
+pip install -r requirements.txt
+```
+
+### Thư viện cần thiết:
+
+| Thư viện | Phiên bản | Mục đích |
+|----------|-----------|----------|
+| `numpy` | >= 2.0.0 | Xử lý ma trận, tính toán số học |
+| `matplotlib` | >= 3.8.0 | Vẽ biểu đồ so sánh |
+
+---
+
+## 🚀 Cách chạy
+
+### Chạy so sánh tất cả các thuật toán:
+
+```bash
+python compare_all_algorithms.py
+```
+
+### Kết quả đầu ra:
+
+Chương trình sẽ tạo ra các biểu đồ so sánh trong thư mục `./fig/`:
+
+- `all_algorithms_max_completion_time.png` - So sánh thời gian hoàn thành tối đa
+- `all_algorithms_execution_time.png` - So sánh thời gian thực thi
+- `all_algorithms_metrics_comparison.png` - So sánh đa metrics (normalized)
+- `all_algorithms_scalability.png` - Test khả năng mở rộng
+
+---
+
+## 📁 Cấu trúc Project
+
+```
+prj/
+├── algorithm/                    # Các thuật toán tối ưu hóa
+│   ├── appa.py                   # APPA gốc (ETR + ACS)
+│   ├── ga_appa.py                # GA-APPA (GA Phase 1 + ACS Phase 2)
+│   ├── ga_phase1.py              # Genetic Algorithm cho Phase 1
+│   ├── ga_pure.py                # Pure GA (GA cho cả 2 phase)
+│   ├── pso_appa.py               # PSO-APPA (PSO Phase 1 + ACS Phase 2)
+│   └── gwo_appa.py               # GWO-APPA (GWO Phase 1 + ACS Phase 2)
+│
+├── utils/                        # Các tiện ích
+│   ├── config.py                 # Cấu hình (UAV, Region, constants)
+│   ├── create_sample.py          # Tạo dữ liệu thử nghiệm
+│   ├── metrics.py                # Tính toán các metrics đánh giá
+│   └── utils.py                  # Các hàm tiện ích
+│
+├── fig/                          # Thư mục chứa biểu đồ đầu ra
+│
+├── compare_all_algorithms.py     # Script chính so sánh thuật toán
+├── requirements.txt              # Danh sách thư viện cần thiết
+└── README.md                     # Tài liệu hướng dẫn
+```
+
+---
+
+## 📊 Metrics đánh giá
 
 ### Time Metrics
-- **Max Completion Time**: Maximum time for any UAV to complete its assigned regions
-- **Avg Completion Time**: Average completion time across all UAVs
-- **Min Completion Time**: Minimum completion time
-- **Execution Time**: Algorithm runtime (computational cost)
+- **Max Completion Time**: Thời gian tối đa để hoàn thành (minimize)
+- **Avg Completion Time**: Thời gian trung bình
+- **Execution Time**: Thời gian chạy thuật toán
 
-### Workload Balance Metrics
-- **Workload Variance**: Variance of completion times across UAVs (lower = more balanced)
-- **Workload Std Dev**: Standard deviation of completion times
-- **Workload Balance Index**: Coefficient of variation (lower = better balance)
+### Workload Balance
+- **Workload Variance**: Phương sai tải công việc (lower = better)
+- **Workload Balance Index**: Hệ số biến thiên (lower = better)
 
-### Distance Metrics
-- **Total Distance**: Total distance traveled by all UAVs
-- **Avg Distance per UAV**: Average distance per UAV
+### Efficiency
+- **Efficiency Ratio**: Tỷ lệ hiệu quả (scan time / total time)
+- **Avg UAV Utilization**: Tỷ lệ sử dụng UAV
 
-### Efficiency Metrics
-- **Total Scan Time**: Total time spent scanning regions
-- **Total Flight Time**: Total time spent flying between regions
-- **Efficiency Ratio**: Scan time / (Scan time + Flight time) - higher is better
+---
 
-### Allocation Metrics
-- **Allocation Balance**: Balance of region allocation across UAVs (lower = more balanced)
-- **Avg UAV Utilization**: Average utilization of UAVs (completion_time / max_completion_time)
+## ⚙️ Cấu hình tham số
 
-### Comparison Metrics
-- **Deviation Ratio**: (Solution - Baseline) / Baseline * 100
-  - Used to compare solution quality relative to baseline
-  - Negative values indicate improvement
+Có thể điều chỉnh các tham số trong `compare_all_algorithms.py`:
 
-## Usage
+```python
+# Số lượng UAV và vùng
+num_uavs = 4
+num_regions = 30
 
-See `code.ipynb` for comprehensive comparison experiments with multiple metrics.
+# Số lần chạy để lấy thống kê
+num_runs = 5
 
-## Files
-- `algorithm/appa.py`: Original APPA algorithm implementation
-- `utils/metrics.py`: Comprehensive metrics calculator
-- `code.ipynb`: Main comparison notebook with multiple evaluation metrics
-- `main.py`: Utility functions for creating academic tables
+# Tham số GA
+ga_population_size = 50
+ga_max_generations = 100
+
+# Tham số PSO
+pso_swarm_size = 50
+pso_max_iterations = 100
+
+# Tham số GWO
+gwo_pack_size = 50
+gwo_max_iterations = 100
+```
+
+---
+
+## 📝 License
+
+MIT License
